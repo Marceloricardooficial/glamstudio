@@ -319,21 +319,14 @@ body{font-family:var(--font-body);background:var(--off-white);color:var(--gray-9
     <div class="logo-sub">Gestão inteligente para o seu salão</div>
   </div>
   <div class="glass-strong login-card">
-    <div class="role-selector">
-      <div class="role-card selected" onclick="selectRole(this,'admin')">
-        <div class="role-icon">👑</div>
-        <div class="role-name">Administradora</div>
-      </div>
-      <div class="role-card" onclick="selectRole(this,'employee')">
-        <div class="role-icon">💅</div>
-        <div class="role-name">Profissional</div>
-      </div>
-    </div>
+    <p style="font-size:13px;color:var(--gray-500);text-align:center;margin-bottom:20px;line-height:1.6;">
+      Entre com sua conta Google cadastrada no sistema.
+    </p>
     <button class="google-btn" id="google-signin-btn" onclick="signInWithGoogle()">
-      <svg class="google-logo" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
+      <svg class="google-logo" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
       Entrar com Google
     </button>
-    <p id="login-error" style="color:var(--rose-deep);font-size:12px;text-align:center;margin-top:10px;display:none;"></p>
+    <p id="login-error" style="color:var(--rose-deep);font-size:12px;text-align:center;margin-top:12px;display:none;line-height:1.5;"></p>
   </div>
 </div>
 
@@ -1122,6 +1115,10 @@ function isCalTokenValid() {
 }
 
 function requestCalendarAccess() {
+  if (typeof google === 'undefined' || !google.accounts) {
+    showToast('SDK do Google ainda carregando, tente em segundos');
+    return;
+  }
   const client = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: CAL_SCOPE,
@@ -1130,14 +1127,80 @@ function requestCalendarAccess() {
         calAccessToken = resp.access_token;
         calTokenExpiry = Date.now() + (resp.expires_in * 1000);
         localStorage.setItem('cal_token', calAccessToken);
-        localStorage.setItem('cal_token_expiry', calTokenExpiry);
+        localStorage.setItem('cal_token_expiry', String(calTokenExpiry));
         updateCalStatus();
         showToast('Google Agenda conectado! 📅');
-        document.getElementById('cal-banner').style.display = 'none';
+        const banner = document.getElementById('cal-banner');
+        if (banner) banner.style.display = 'none';
+        // Importa eventos do mês atual logo após conectar
+        importCalendarEvents();
       }
     }
   });
   client.requestAccessToken();
+}
+
+// ── Importa eventos do Google Calendar do mês atual para o Firestore ──
+let calImportRunning = false;
+async function importCalendarEvents() {
+  if (!isCalTokenValid() || calImportRunning) return;
+  calImportRunning = true;
+  try {
+    const now   = new Date();
+    const year  = now.getFullYear();
+    const month = String(now.getMonth()+1).padStart(2,'0');
+    const timeMin = `${year}-${month}-01T00:00:00-03:00`;
+    const timeMax = `${year}-${month}-31T23:59:59-03:00`;
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events`
+      + `?timeMin=${encodeURIComponent(timeMin)}`
+      + `&timeMax=${encodeURIComponent(timeMax)}`
+      + `&singleEvents=true&orderBy=startTime&maxResults=100`;
+    const res  = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${calAccessToken}` }
+    });
+    const data = await res.json();
+    if (!data.items?.length) { calImportRunning=false; return; }
+    let imported = 0;
+    for (const ev of data.items) {
+      // Só importa eventos com horário definido (não dia-inteiro)
+      if (!ev.start?.dateTime) continue;
+      // Verifica se já existe no Firestore (pelo calEventId)
+      const exists = await salonCol('appointments')
+        .where('calEventId','==',ev.id).limit(1).get();
+      if (!exists.empty) continue;
+      const startDT = new Date(ev.start.dateTime);
+      const endDT   = new Date(ev.end?.dateTime || ev.start.dateTime);
+      const dateStr = startDT.toISOString().split('T')[0];
+      const startTime = `${String(startDT.getHours()).padStart(2,'0')}:${String(startDT.getMinutes()).padStart(2,'0')}`;
+      const endTime   = `${String(endDT.getHours()).padStart(2,'0')}:${String(endDT.getMinutes()).padStart(2,'0')}`;
+      await addDoc('appointments', {
+        calEventId:       ev.id,
+        clientName:       ev.summary || 'Importado do Google',
+        serviceName:      '',
+        professionalName: currentProfile?.nome || '',
+        professionalId:   currentProfile?.linkedProfId || '',
+        clientId:         '',
+        serviceId:        '',
+        date:             dateStr,
+        startTime,
+        endTime,
+        value:            0,
+        commissionPct:    0,
+        commissionValue:  0,
+        salonNet:         0,
+        professionalNet:  0,
+        status:           'pending',
+        notes:            ev.description || '',
+        payments:         [],
+        importedFromCal:  true,
+      });
+      imported++;
+    }
+    if (imported > 0) showToast(`${imported} evento(s) importado(s) da Agenda! 📅`);
+  } catch(e) {
+    console.error('importCalendarEvents:', e);
+  }
+  calImportRunning = false;
 }
 
 async function createCalendarEvent(appt) {
@@ -1194,129 +1257,167 @@ function updateCalStatus() {
 }
 
 // ============================================================
-//  AUTH
+//  AUTH — login exclusivo via Google, role vem do Firestore
 // ============================================================
-let currentUser = null;
-let salonId     = null;
-let userRole    = 'admin';
-let selectedRole = 'admin';
+let currentUser    = null;  // firebase.User
+let currentProfile = null;  // dados do doc users/{uid}
+let salonId        = null;
+let userRole       = 'admin'; // 'admin' | 'funcionaria'
 
-function selectRole(el, role) {
-  selectedRole = role;
-  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
+// ── Verifica se o usuário tem permissão para ver financeiro do salão ──
+function canSeeFinanceiro() { return userRole === 'admin'; }
+// ── Verifica se pode ver dados financeiros de uma profissional específica ──
+function canSeeFinanceiroOf(profId) {
+  if (userRole === 'admin') return profId === currentProfile?.linkedProfId || false;
+  // funcionaria só vê a si mesma
+  return profId === currentProfile?.linkedProfId;
 }
 
 async function signInWithGoogle() {
   const btn = document.getElementById('google-signin-btn');
   btn.disabled = true;
-  btn.textContent = 'Entrando...';
+  btn.innerHTML = '<span style="opacity:.6">Entrando...</span>';
   try {
     const provider = new firebase.auth.GoogleAuthProvider();
-    // Request Calendar scope during sign-in too
     provider.addScope(CAL_SCOPE);
+    // Força selecionar conta Google sempre
+    provider.setCustomParameters({ prompt: 'select_account' });
     const result = await auth.signInWithPopup(provider);
-    // Grab calendar token from credential
+    // Captura token do Calendar já no login
     const cred = result.credential;
-    if (cred && cred.accessToken) {
+    if (cred?.accessToken) {
       calAccessToken = cred.accessToken;
       calTokenExpiry = Date.now() + 3600000;
       localStorage.setItem('cal_token', calAccessToken);
-      localStorage.setItem('cal_token_expiry', calTokenExpiry);
+      localStorage.setItem('cal_token_expiry', String(calTokenExpiry));
     }
-    // Save/update user doc
-    const uid = result.user.uid;
-    const userRef = db.collection('users').doc(uid);
-    const snap = await userRef.get();
-    if (!snap.exists) {
-      await userRef.set({
-        name:        result.user.displayName,
-        email:       result.user.email,
-        photoURL:    result.user.photoURL,
-        role:        selectedRole,
-        salonId:     uid, // owner's uid = salonId
-        createdAt:   firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }
+    // NÃO criamos doc aqui — usuários são pré-cadastrados pelo admin
+    // onAuthStateChanged vai buscar o doc e validar
   } catch(e) {
     const errEl = document.getElementById('login-error');
-    errEl.style.display = 'block';
-    errEl.textContent = 'Erro ao entrar: ' + e.message;
+    if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Erro: ' + e.message; }
     btn.disabled = false;
-    btn.innerHTML = `<svg class="google-logo" viewBox="0 0 48 48">...</svg> Entrar com Google`;
+    btn.innerHTML = `<svg class="google-logo" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg> Entrar com Google`;
   }
 }
 
 auth.onAuthStateChanged(async (user) => {
-  document.getElementById('loading-overlay').style.display = 'none';
-  if (user) {
-    currentUser = user;
-    // Load user doc to get role & salonId
-    const snap = await db.collection('users').doc(user.uid).get();
-    if (snap.exists) {
-      const data = snap.data();
-      userRole = data.role || 'admin';
-      salonId  = data.salonId || user.uid;
-    } else {
-      userRole = 'admin';
-      salonId  = user.uid;
-    }
-    // Update UI with user info
-    updateUserUI(user);
-    // Show main app
-    document.getElementById('login-screen').classList.remove('active');
-    document.getElementById('home-screen').classList.add('active');
-    document.getElementById('bottom-nav').style.display = 'block';
-    // Init seed data if empty
-    await seedDefaultData();
-    // Start real-time listeners
-    attachListeners();
-    // Build day nav
-    generateDayNav();
-    generateChartBars();
-    updateCalStatus();
-    // Show calendar banner if not connected
-    if (!isCalTokenValid()) {
-      document.getElementById('cal-banner').style.display = 'flex';
-    }
-  } else {
-    currentUser = null;
-    document.getElementById('home-screen').classList.remove('active');
-    document.getElementById('bottom-nav').style.display = 'none';
+  const overlay = document.getElementById('loading-overlay');
+  if (!user) {
+    if (overlay) overlay.style.display = 'none';
+    currentUser = null; currentProfile = null;
+    SCREENS.forEach(s => document.getElementById(s+'-screen')?.classList.remove('active'));
     document.getElementById('login-screen').classList.add('active');
+    document.getElementById('bottom-nav').style.display = 'none';
+    return;
+  }
+
+  // ── Busca doc do usuário por UID (doc id = uid) ──
+  let snap = await db.collection('users').doc(user.uid).get();
+
+  // ── Fallback: busca por email (caso o uid ainda não seja a chave) ──
+  if (!snap.exists) {
+    const byEmail = await db.collection('users')
+      .where('email', '==', user.email).limit(1).get();
+    if (!byEmail.empty) {
+      snap = byEmail.docs[0];
+      // Atualiza uid no doc para facilitar próximas buscas
+      await db.collection('users').doc(byEmail.docs[0].id)
+        .update({ uid: user.uid }).catch(()=>{});
+    }
+  }
+
+  if (!snap.exists) {
+    // Email não cadastrado no sistema
+    if (overlay) overlay.style.display = 'none';
+    await auth.signOut();
+    const errEl = document.getElementById('login-error');
+    if (errEl) {
+      errEl.style.display = 'block';
+      errEl.textContent = '⛔ Acesso negado. Seu e-mail não está cadastrado no sistema.';
+    }
+    document.getElementById('login-screen').classList.add('active');
+    return;
+  }
+
+  currentUser    = user;
+  currentProfile = { id: snap.id, ...snap.data() };
+  userRole       = currentProfile.role || 'admin';
+  salonId        = currentProfile.salonId || snap.id;
+
+  if (overlay) overlay.style.display = 'none';
+
+  updateUserUI();
+  applyRolePermissions();
+
+  // Mostra app
+  document.getElementById('login-screen').classList.remove('active');
+  document.getElementById('home-screen').classList.add('active');
+  document.getElementById('bottom-nav').style.display = 'block';
+
+  await seedDefaultData();
+  attachListeners();
+  generateDayNav();
+  generateChartBars();
+  updateCalStatus();
+
+  if (!isCalTokenValid()) {
+    const banner = document.getElementById('cal-banner');
+    if (banner) banner.style.display = 'flex';
+  } else {
+    // Auto-importa eventos do mês atual do Google Calendar
+    importCalendarEvents();
   }
 });
 
-function updateUserUI(user) {
-  const name = user.displayName || 'Usuária';
-  const photo = user.photoURL;
-  const initial = name[0].toUpperCase();
-  // Greeting
-  const hour = new Date().getHours();
+// ── Aplica visibilidade de módulos por role ──
+function applyRolePermissions() {
+  const isAdmin = userRole === 'admin';
+  // Nav: relatórios só para admin
+  const navRel = document.getElementById('nav-relatorios');
+  if (navRel) navRel.style.display = isAdmin ? '' : 'none';
+  // Tela de despesas só para admin
+  const navDesp = document.getElementById('nav-despesas');
+  if (navDesp) navDesp.style.display = isAdmin ? '' : 'none';
+  // Seção financeira do dashboard
+  const calBanner = document.getElementById('cal-banner');
+  // Stats cards: funcionária vê apenas seus ganhos
+  if (!isAdmin) {
+    // Oculta cards de financeiro geral e substitui por ganhos individuais
+    document.querySelectorAll('.stat-card.mint, .stat-card.lavender').forEach(el => {
+      el.style.display = 'none';
+    });
+  }
+}
+
+function updateUserUI() {
+  const name  = currentProfile?.nome || currentUser.displayName || 'Usuária';
+  const photo = currentUser.photoURL;
+  const hour  = new Date().getHours();
   const greet = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
   const greetEl = document.getElementById('greeting');
   if (greetEl) greetEl.textContent = `${greet}, ${name.split(' ')[0]} 👋`;
-  // Avatars
   ['user-avatar-home','profile-avatar'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (photo) {
-      el.innerHTML = `<img src="${photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-    } else {
-      el.textContent = initial;
-    }
+    el.innerHTML = photo
+      ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+      : name[0].toUpperCase();
   });
   const pName = document.getElementById('profile-name');
   const pRole = document.getElementById('profile-role');
   if (pName) pName.textContent = name;
-  if (pRole) pRole.textContent = userRole === 'admin' ? '👑 Administradora' : '💅 Profissional';
+  if (pRole) pRole.textContent = userRole === 'admin' ? '👑 Admin / Sócia' : '💅 Profissional';
 }
 
 async function doLogout() {
+  detachListeners();
+  cache = { appointments:[], expenses:[], professionals:[], clients:[], services:[], branches:[], categories:[], waTemplate:'' };
   await auth.signOut();
   localStorage.removeItem('cal_token');
   localStorage.removeItem('cal_token_expiry');
   calAccessToken = null;
+  calTokenExpiry = 0;
   showToast('Até logo! 👋');
 }
 
@@ -1371,67 +1472,68 @@ async function seedDefaultData() {
 }
 
 // ============================================================
-//  REAL-TIME DATA CACHE
+//  REAL-TIME DATA CACHE + LISTENERS
 // ============================================================
 let cache = {
-  appointments: [],
-  expenses: [],
-  professionals: [],
-  clients: [],
-  services: [],
-  branches: [],
-  categories: [],
-  waTemplate: '',
+  appointments: [], expenses: [], professionals: [],
+  clients: [], services: [], branches: [], categories: [], waTemplate: '',
 };
 let selectedDayStr = new Date().toISOString().split('T')[0];
+// Guarda os unsubscribers para limpar no logout
+let _unsubscribers = [];
+
+function detachListeners() {
+  _unsubscribers.forEach(fn => { try { fn(); } catch(e){} });
+  _unsubscribers = [];
+}
 
 function attachListeners() {
-  salonCol('appointments').orderBy('date').onSnapshot(snap => {
-    cache.appointments = snap.docs.map(d => ({id:d.id,...d.data()}));
-    renderAgenda();
-    renderHomeAppts();
-    renderReports();
+  detachListeners(); // garante sem duplicatas
+
+  // Helper: onSnapshot com handler de erro e atualização de UI
+  function listen(query, key, ...renderFns) {
+    const unsub = query.onSnapshot(snap => {
+      cache[key] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderFns.forEach(fn => { try { fn(); } catch(e){ console.warn('render err',fn.name,e); } });
+    }, err => console.error(`Listener ${key}:`, err));
+    _unsubscribers.push(unsub);
+  }
+
+  // Agenda: admin vê tudo; funcionária só vê os seus
+  const apptQuery = userRole === 'admin'
+    ? salonCol('appointments').orderBy('date')
+    : salonCol('appointments').where('professionalId','==', currentProfile?.linkedProfId||'__none__').orderBy('date');
+
+  listen(apptQuery, 'appointments',
+    renderAgenda, renderHomeAppts, renderReports);
+
+  listen(salonCol('expenses').orderBy('createdAt','desc'), 'expenses',
+    () => renderExpenses(currentExpenseFilter), renderReports);
+
+  listen(salonCol('professionals').orderBy('name'), 'professionals',
+    renderProfessionals, populateSelects, renderReports);
+
+  listen(salonCol('clients').orderBy('name'), 'clients',
+    renderClients, populateSelects);
+
+  listen(salonCol('services').orderBy('name'), 'services',
+    renderServices, populateSelects);
+
+  listen(salonCol('branches').orderBy('name'), 'branches',
+    renderBranchPreviews, renderBranchModal, populateBranchChips, populateSelects);
+
+  listen(salonCol('categories').orderBy('name'), 'categories',
+    renderCategoryPreviews, renderCategoryModal, populateCategorySelect);
+
+  // WA template (doc do usuário)
+  const unsubUser = db.collection('users').doc(currentUser.uid).onSnapshot(snap => {
+    if (snap.exists) {
+      cache.waTemplate = snap.data().waTemplate || '';
+      const el = document.getElementById('wa-edit');
+      if (el && cache.waTemplate) el.value = cache.waTemplate;
+    }
   });
-  salonCol('expenses').orderBy('createdAt','desc').onSnapshot(snap => {
-    cache.expenses = snap.docs.map(d => ({id:d.id,...d.data()}));
-    renderExpenses('all');
-    renderReports();
-  });
-  salonCol('professionals').orderBy('name').onSnapshot(snap => {
-    cache.professionals = snap.docs.map(d => ({id:d.id,...d.data()}));
-    renderProfessionals();
-    populateSelects();
-    renderReports();
-  });
-  salonCol('clients').orderBy('name').onSnapshot(snap => {
-    cache.clients = snap.docs.map(d => ({id:d.id,...d.data()}));
-    renderClients();
-    populateSelects();
-  });
-  salonCol('services').orderBy('name').onSnapshot(snap => {
-    cache.services = snap.docs.map(d => ({id:d.id,...d.data()}));
-    renderServices();
-    populateSelects();
-  });
-  salonCol('branches').orderBy('name').onSnapshot(snap => {
-    cache.branches = snap.docs.map(d => ({id:d.id,...d.data()}));
-    renderBranchPreviews();
-    renderBranchModal();
-    populateBranchChips();
-    populateSelects();
-  });
-  salonCol('categories').orderBy('name').onSnapshot(snap => {
-    cache.categories = snap.docs.map(d => ({id:d.id,...d.data()}));
-    renderCategoryPreviews();
-    renderCategoryModal();
-    populateCategorySelect();
-  });
-  // WA template
-  db.collection('users').doc(currentUser.uid).onSnapshot(snap => {
-    if (snap.exists) cache.waTemplate = snap.data().waTemplate || '';
-    const el = document.getElementById('wa-edit');
-    if (el && cache.waTemplate) el.value = cache.waTemplate;
-  });
+  _unsubscribers.push(unsubUser);
 }
 
 // ============================================================
@@ -1651,69 +1753,106 @@ function renderAgenda() {
 }
 
 // ============================================================
-//  RENDER: REPORTS
+//  RENDER: REPORTS  (financeiro correto + controle por role)
 // ============================================================
 function renderReports() {
-  const now = new Date();
+  const now        = new Date();
   const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-  const appts = cache.appointments.filter(a => a.date >= monthStart && (a.status==='paid'||a.status==='partial'));
-  const totalIncome = appts.reduce((s,a) => s + parseFloat(a.paidAmount||a.value||0), 0);
-  const expenses = cache.expenses;
-  const totalExpense = expenses.reduce((s,e) => {
-    const paid = (e.payments||[]).reduce((ps,p)=>ps+parseFloat(p.amount||0),0);
-    return s + paid;
+  const paidAppts  = cache.appointments.filter(
+    a => a.date >= monthStart && (a.status==='paid' || a.status==='partial')
+  );
+
+  // ── Valores calculados com base em salonNet (já com comissão descontada) ──
+  // Para atendimentos antigos sem salonNet, calcula na hora
+  function getSalonNet(a) {
+    if (a.salonNet !== undefined) return parseFloat(a.salonNet || 0);
+    const v   = parseFloat(a.paidAmount || a.value || 0);
+    const pct = parseFloat(a.commissionPct || 0);
+    return v * (1 - pct / 100);
+  }
+  function getProfNet(a) {
+    if (a.professionalNet !== undefined) return parseFloat(a.professionalNet || 0);
+    const v   = parseFloat(a.paidAmount || a.value || 0);
+    const pct = parseFloat(a.commissionPct || 0);
+    return v * (pct / 100);
+  }
+
+  const totalSalonNet = paidAppts.reduce((s,a) => s + getSalonNet(a), 0);
+  const totalExpenses = cache.expenses.reduce((s,e) => {
+    return s + (e.payments||[]).reduce((ps,p)=>ps+parseFloat(p.amount||0), 0);
   }, 0);
+  const salonProfit = totalSalonNet - totalExpenses;
+
+  // ── Ganhos da profissional logada (se for funcionária) ──
+  const myLinkedProfId = currentProfile?.linkedProfId || null;
+  const myPaidAppts = myLinkedProfId
+    ? paidAppts.filter(a => a.professionalId === myLinkedProfId)
+    : [];
+  const myEarnings = myPaidAppts.reduce((s,a) => s + getProfNet(a), 0);
+
   const setV = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
-  setV('rep-income', fmtCurrency(totalIncome));
-  setV('rep-expense', fmtCurrency(totalExpense));
-  // Commissions
+
+  // ── Exibe conforme role ──
+  if (userRole === 'admin') {
+    setV('rep-income',  fmtCurrency(totalSalonNet));
+    setV('rep-expense', fmtCurrency(totalExpenses));
+    // Stats do dashboard
+    const todayPaid = cache.appointments.filter(
+      a => a.date===todayStr() && (a.status==='paid'||a.status==='partial')
+    );
+    const todaySalonNet = todayPaid.reduce((s,a)=>s+getSalonNet(a),0);
+    setV('stat-today',  fmtCurrency(todaySalonNet));
+    setV('stat-month',  fmtCurrency(totalSalonNet));
+    setV('stat-profit', fmtCurrency(salonProfit));
+    setV('stat-appts',  `${todayPaid.length} hoje`);
+    // Insight
+    const insightEl = document.getElementById('insight-text-1');
+    if (insightEl) {
+      insightEl.innerHTML = totalSalonNet > 0
+        ? `Receita líquida do mês: <strong>${fmtCurrency(totalSalonNet)}</strong>. Despesas: <strong>${fmtCurrency(totalExpenses)}</strong>. Lucro: <strong>${fmtCurrency(salonProfit)}</strong>.`
+        : 'Registre atendimentos para ver insights financeiros.';
+    }
+    const repInsight = document.getElementById('rep-insight');
+    if (repInsight) {
+      repInsight.innerHTML = `Receita líquida (após comissões): <strong>${fmtCurrency(totalSalonNet)}</strong> — Despesas: <strong>${fmtCurrency(totalExpenses)}</strong> → Lucro: <strong style="color:var(--rose-deep)">${fmtCurrency(salonProfit)}</strong>.`;
+    }
+  } else {
+    // Funcionária: apenas seus ganhos
+    setV('stat-today',  fmtCurrency(myPaidAppts.filter(a=>a.date===todayStr()).reduce((s,a)=>s+getProfNet(a),0)));
+    setV('stat-month',  fmtCurrency(myEarnings));
+    setV('stat-profit', fmtCurrency(myEarnings));
+    setV('stat-appts',  `${myPaidAppts.filter(a=>a.date===todayStr()).length} hoje`);
+    const insightEl = document.getElementById('insight-text-1');
+    if (insightEl) insightEl.innerHTML = `Seus ganhos no mês: <strong>${fmtCurrency(myEarnings)}</strong>.`;
+  }
+
+  // ── Tabela de comissões (somente admin vê) ──
   const commList = document.getElementById('commissions-list');
-  if (commList) {
-    const profs = cache.professionals.filter(p=>p.type!=='admin');
-    if (!profs.length) {
-      commList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray-300);font-size:13px;">Sem profissionais</div>';
-    } else {
-      commList.innerHTML = profs.map(p => {
-        const pAppts = appts.filter(a => a.professionalId===p.id);
-        const pIncome = pAppts.reduce((s,a)=>s+parseFloat(a.paidAmount||a.value||0),0);
-        const comm = pIncome * (parseFloat(p.commission||0)/100);
-        const pct = totalIncome > 0 ? Math.round((pIncome/totalIncome)*100) : 0;
-        return `<div class="commission-row">
-          <div class="avatar av-sm" style="background:${avatarBg(p.name)};color:var(--rose-deep);">${initials(p.name)}</div>
-          <div class="commission-info">
-            <div class="commission-name">${p.name}</div>
-            <div class="commission-detail">${p.commission||0}% • ${pAppts.length} atendimentos</div>
-            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-          </div>
-          <div class="commission-value">${fmtCurrency(comm)}</div>
-        </div>`;
-      }).join('');
-    }
+  if (!commList) return;
+  if (userRole !== 'admin') {
+    commList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray-300);font-size:13px;">Acesso restrito</div>';
+    return;
   }
-  // Stats (home)
-  const todayAppts = cache.appointments.filter(a=>a.date===todayStr()&&(a.status==='paid'||a.status==='partial'));
-  const todayIncome = todayAppts.reduce((s,a)=>s+parseFloat(a.paidAmount||a.value||0),0);
-  const allCommissions = cache.professionals.filter(p=>p.type!=='admin').reduce((s,p)=>{
-    const pIncome = appts.filter(a=>a.professionalId===p.id).reduce((si,a)=>si+parseFloat(a.paidAmount||a.value||0),0);
-    return s + pIncome*(parseFloat(p.commission||0)/100);
-  },0);
-  setV('stat-today', fmtCurrency(todayIncome));
-  setV('stat-month', fmtCurrency(totalIncome));
-  setV('stat-profit', fmtCurrency(totalIncome - allCommissions - totalExpense));
-  setV('stat-appts', `${todayAppts.length} hoje`);
-  // Insight
-  const insightEl = document.getElementById('insight-text-1');
-  if (insightEl) {
-    if (totalIncome > 0) {
-      insightEl.innerHTML = `Faturamento do mês: <strong>${fmtCurrency(totalIncome)}</strong>. Comissões a pagar: <strong>${fmtCurrency(allCommissions)}</strong>. Lucro estimado: <strong>${fmtCurrency(totalIncome-allCommissions-totalExpense)}</strong>.`;
-    } else {
-      insightEl.textContent = 'Registre atendimentos para ver insights financeiros.';
-    }
+  const profs = cache.professionals.filter(p => p.type !== 'admin');
+  if (!profs.length) {
+    commList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray-300);font-size:13px;">Sem profissionais</div>';
+    return;
   }
-  const repInsight = document.getElementById('rep-insight');
-  if (repInsight) {
-    repInsight.innerHTML = `Mês atual: Receitas <strong>${fmtCurrency(totalIncome)}</strong> — Despesas <strong>${fmtCurrency(totalExpense)}</strong> — Comissões <strong>${fmtCurrency(allCommissions)}</strong> → Lucro líquido <strong style="color:var(--rose-deep)">${fmtCurrency(totalIncome-allCommissions-totalExpense)}</strong>.`;
-  }
+  commList.innerHTML = profs.map(p => {
+    const pAppts  = paidAppts.filter(a => a.professionalId === p.id);
+    const profEarnings = pAppts.reduce((s,a) => s + getProfNet(a), 0);
+    const pSalonNet    = pAppts.reduce((s,a) => s + getSalonNet(a), 0);
+    const pct = totalSalonNet > 0 ? Math.round((pSalonNet/totalSalonNet)*100) : 0;
+    return `<div class="commission-row">
+      <div class="avatar av-sm" style="background:${avatarBg(p.name)};color:var(--rose-deep);">${initials(p.name)}</div>
+      <div class="commission-info">
+        <div class="commission-name">${p.name}</div>
+        <div class="commission-detail">${p.commission||0}% • ${pAppts.length} atend. • Salão: ${fmtCurrency(pSalonNet)}</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="commission-value" title="Comissão da profissional">${fmtCurrency(profEarnings)}</div>
+    </div>`;
+  }).join('');
 }
 
 // ============================================================
@@ -2041,46 +2180,56 @@ function openNewApptModal() {
 }
 
 async function saveAppointment() {
-  const clientId = document.getElementById('appt-client').value;
-  const serviceId = document.getElementById('appt-service').value;
+  const clientId       = document.getElementById('appt-client').value;
+  const serviceId      = document.getElementById('appt-service').value;
   const professionalId = document.getElementById('appt-professional').value;
-  const date = document.getElementById('appt-date').value;
-  const startTime = document.getElementById('appt-start').value;
-  const endTime = document.getElementById('appt-end').value;
-  const value = parseFloat(document.getElementById('appt-value').value||0);
-  const status = document.getElementById('appt-status').value;
-  const notes = document.getElementById('appt-notes').value;
-  const editId = document.getElementById('appt-edit-id').value;
+  const date           = document.getElementById('appt-date').value;
+  const startTime      = document.getElementById('appt-start').value;
+  const endTime        = document.getElementById('appt-end').value;
+  const value          = parseFloat(document.getElementById('appt-value').value||0);
+  const status         = document.getElementById('appt-status').value;
+  const notes          = document.getElementById('appt-notes').value;
+  const editId         = document.getElementById('appt-edit-id').value;
   if (!clientId||!date||!startTime) { showToast('Preencha cliente, data e horário!'); return; }
 
   const client = cache.clients.find(c=>c.id===clientId);
   const service = cache.services.find(s=>s.id===serviceId);
-  const prof = cache.professionals.find(p=>p.id===professionalId);
+  const prof   = cache.professionals.find(p=>p.id===professionalId);
+
+  // ── Cálculo financeiro correto ──
+  const commissionPct   = parseFloat(prof?.commission || 0);          // ex: 50
+  const commissionValue = value * (commissionPct / 100);              // ex: R$50
+  const salonNet        = value - commissionValue;                    // ex: R$50 (o que fica no salão)
+  const professionalNet = commissionValue;                            // ex: R$50 (o que vai pra profissional)
 
   const apptData = {
     clientId, serviceId, professionalId, date, startTime, endTime,
-    value, status, notes,
-    clientName: client?.name||'',
-    serviceName: service?.name||'',
-    professionalName: prof?.name||'',
-    paidAmount: status==='paid' ? value : 0,
-    payments: [],
+    value,          // valor total cobrado do cliente
+    commissionPct,  // % da comissão no momento do cadastro (histórico)
+    commissionValue,// valor em R$ da comissão
+    salonNet,       // valor líquido para o salão
+    professionalNet,// valor líquido para a profissional
+    status, notes,
+    clientName:       client?.name || '',
+    serviceName:      service?.name || '',
+    professionalName: prof?.name || '',
+    // paidAmount rastreado nos pagamentos
+    paidAmount: status === 'paid' ? value : 0,
+    payments:   [],
     calEventId: null,
   };
 
   const syncCal = document.getElementById('cal-toggle')?.classList.contains('on');
-
-  let calEventId = null;
   if (syncCal) {
-    calEventId = await createCalendarEvent(apptData);
+    const calEventId = await createCalendarEvent(apptData);
     apptData.calEventId = calEventId;
   }
 
   if (editId) {
-    // preserve existing payments
     const existing = cache.appointments.find(a=>a.id===editId);
-    apptData.payments = existing?.payments || [];
+    apptData.payments   = existing?.payments   || [];
     apptData.paidAmount = existing?.paidAmount || (status==='paid'?value:0);
+    apptData.calEventId = existing?.calEventId || null;
     await updateDoc('appointments', editId, apptData);
     showToast('Atendimento atualizado! ✅');
   } else {
