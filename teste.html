@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salão de Beleza - Sistema Integrado</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; }
+        .navbar-brand { font-weight: bold; }
+        .card { margin-bottom: 20px; }
+        .table th { background-color: #f2f2f2; }
+        .btn-sync { background-color: #0d6efd; color: white; }
+        .btn-sync:hover { background-color: #0b5ed7; }
+        .loading { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; }
+        .spinner-border { width: 3rem; height: 3rem; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Salão & Estética</a>
+            <div class="d-flex">
+                <span class="navbar-text text-white me-3" id="userName"></span>
+                <button class="btn btn-outline-light btn-sm" id="logoutBtn">Sair</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Abas -->
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="agenda-tab" data-bs-toggle="tab" data-bs-target="#agenda" type="button" role="tab">Agenda</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="financeiro-tab" data-bs-toggle="tab" data-bs-target="#financeiro" type="button" role="tab">Financeiro</button>
+            </li>
+        </ul>
+
+        <div class="tab-content mt-3">
+            <!-- Aba Agenda -->
+            <div class="tab-pane fade show active" id="agenda" role="tabpanel">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Agenda de Profissionais</span>
+                        <button class="btn btn-sync btn-sm" id="syncAgendaBtn">Sincronizar com Google (Mês Atual)</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="agendaContent">
+                            <div class="alert alert-info">Selecione um profissional para ver a agenda</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aba Financeiro -->
+            <div class="tab-pane fade" id="financeiro" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <span>Demonstrativo Financeiro</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="financeiroContent"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading" id="loading">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Carregando...</span>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ========== SIMULAÇÃO DE DADOS (SUBSTITUIR PELAS CHAMADAS REAIS) ==========
+        // Usuários simulados (no backend, teria role e email_google)
+        const users = [
+            { id: 1, name: "Ana Sócia", email: "ana@salao.com", role: "admin_socia", googleCalendarId: "ana@gmail.com" },
+            { id: 2, name: "Maria Sócia", email: "maria@salao.com", role: "admin_socia", googleCalendarId: "maria@gmail.com" },
+            { id: 3, name: "Carla Funcionária", email: "carla@salao.com", role: "funcionaria", googleCalendarId: "carla@gmail.com" }
+        ];
+
+        // Atendimentos simulados (valor bruto e comissão)
+        let atendimentos = [
+            { id: 1, profissionalId: 3, cliente: "Joana", valorBruto: 100, comissao: 50, data: "2025-04-10" },
+            { id: 2, profissionalId: 3, cliente: "Mariana", valorBruto: 200, comissao: 100, data: "2025-04-15" },
+            { id: 3, profissionalId: 1, cliente: "Fernanda", valorBruto: 150, comissao: 75, data: "2025-04-18" } // admin também atende
+        ];
+
+        // Agendamentos simulados (do Google)
+        let agendamentos = [
+            { id: 1, profissionalId: 3, titulo: "Corte de cabelo", inicio: "2025-04-20T10:00:00", fim: "2025-04-20T11:00:00", cliente: "Luciana" },
+            { id: 2, profissionalId: 1, titulo: "Manicure", inicio: "2025-04-21T14:00:00", fim: "2025-04-21T15:00:00", cliente: "Patrícia" }
+        ];
+
+        let currentUser = null;
+
+        // Função para simular login com Google (selecionar perfil)
+        function showLogin() {
+            let html = '<div class="card"><div class="card-body"><h5>Login com Google (simulado)</h5>';
+            users.forEach(u => {
+                html += `<button class="btn btn-outline-primary m-2" onclick="login('${u.email}')">Entrar como ${u.name}</button>`;
+            });
+            html += '</div></div>';
+            document.body.innerHTML = html;
+        }
+
+        window.login = function(email) {
+            const user = users.find(u => u.email === email);
+            if (user) {
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                location.reload();
+            } else {
+                alert('Usuário não autorizado');
+            }
+        };
+
+        // Carrega usuário logado
+        function loadCurrentUser() {
+            const stored = localStorage.getItem('currentUser');
+            if (stored) {
+                currentUser = JSON.parse(stored);
+                document.getElementById('userName').innerText = currentUser.name;
+            } else {
+                showLogin();
+                return false;
+            }
+            return true;
+        }
+
+        // ========== FUNÇÕES DE PERMISSÃO ==========
+        function isAdmin() {
+            return currentUser && currentUser.role === 'admin_socia';
+        }
+
+        // ========== RENDERIZAÇÃO DA AGENDA ==========
+        async function renderAgenda() {
+            const container = document.getElementById('agendaContent');
+            // Buscar todos os profissionais (funcionárias e admins) - em produção, viria do backend
+            const profissionais = users.filter(u => u.role === 'funcionaria' || u.role === 'admin_socia');
+            
+            let html = '<div class="mb-3"><label>Selecionar profissional:</label><select id="profissionalSelect" class="form-select">';
+            profissionais.forEach(p => {
+                html += `<option value="${p.id}">${p.name}</option>`;
+            });
+            html += '</select></div>';
+            html += '<div id="agendaLista"></div>';
+            container.innerHTML = html;
+
+            const select = document.getElementById('profissionalSelect');
+            select.addEventListener('change', () => carregarAgendaProfissional(select.value));
+            carregarAgendaProfissional(select.value);
+        }
+
+        async function carregarAgendaProfissional(profissionalId) {
+            showLoading(true);
+            // Simula busca de agendamentos do profissional
+            const agendamentosProf = agendamentos.filter(a => a.profissionalId == profissionalId);
+            let html = '<h5>Agendamentos</h5>';
+            if (agendamentosProf.length === 0) {
+                html += '<div class="alert alert-secondary">Nenhum agendamento para este profissional.</div>';
+            } else {
+                html += '<table class="table table-sm"><thead><tr><th>Cliente</th><th>Serviço</th><th>Data/Hora</th></tr></thead><tbody>';
+                agendamentosProf.forEach(ag => {
+                    const dataHora = new Date(ag.inicio).toLocaleString();
+                    html += `<tr><td>${ag.cliente}</td><td>${ag.titulo}</td><td>${dataHora}</td></tr>`;
+                });
+                html += '</tbody></table>';
+            }
+            document.getElementById('agendaLista').innerHTML = html;
+            showLoading(false);
+        }
+
+        // Sincronização com Google (simulação)
+        async function syncGoogleCalendar() {
+            showLoading(true);
+            // Em produção: chamada POST /api/agenda/sync?mes=2025-04 (mês atual)
+            // Aqui simulamos adicionando um evento de exemplo para o usuário logado
+            const mesAtual = new Date().toISOString().slice(0,7);
+            setTimeout(() => {
+                // Simula novo evento vindo do Google
+                const novoEvento = {
+                    id: Date.now(),
+                    profissionalId: currentUser.id,
+                    titulo: "Evento sincronizado - Reunião",
+                    inicio: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString(),
+                    fim: new Date(new Date().setDate(new Date().getDate() + 2) + 3600000).toISOString(),
+                    cliente: "Google Sync"
+                };
+                agendamentos.push(novoEvento);
+                alert(`Sincronização concluída! Novo evento adicionado para o mês ${mesAtual}.`);
+                // Recarrega agenda se o profissional selecionado for o mesmo
+                const select = document.getElementById('profissionalSelect');
+                if (select) carregarAgendaProfissional(select.value);
+                showLoading(false);
+            }, 1000);
+        }
+
+        // ========== RENDERIZAÇÃO FINANCEIRO ==========
+        async function renderFinanceiro() {
+            const container = document.getElementById('financeiroContent');
+            showLoading(true);
+            
+            // Simula chamada ao backend
+            let data = {};
+            if (isAdmin()) {
+                // Admin sócia vê total do salão + seus próprios rendimentos
+                const totalBruto = atendimentos.reduce((sum, a) => sum + a.valorBruto, 0);
+                const meusAtendimentos = atendimentos.filter(a => a.profissionalId === currentUser.id);
+                const meuRendimento = meusAtendimentos.reduce((sum, a) => sum + a.comissao, 0);
+                data = {
+                    totalSalon: totalBruto,
+                    myEarnings: meuRendimento,
+                    myAppointments: meusAtendimentos
+                };
+            } else {
+                // Funcionária vê apenas seus rendimentos
+                const meusAtendimentos = atendimentos.filter(a => a.profissionalId === currentUser.id);
+                const meuRendimento = meusAtendimentos.reduce((sum, a) => sum + a.comissao, 0);
+                data = {
+                    myEarnings: meuRendimento,
+                    myAppointments: meusAtendimentos
+                };
+            }
+
+            let html = '';
+            if (isAdmin()) {
+                html += `<div class="alert alert-success">Faturamento Bruto do Salão: R$ ${data.totalSalon.toFixed(2)}</div>`;
+                html += `<div class="alert alert-info">Seus Rendimentos (comissões): R$ ${data.myEarnings.toFixed(2)}</div>`;
+            } else {
+                html += `<div class="alert alert-info">Seus Rendimentos (comissões): R$ ${data.myEarnings.toFixed(2)}</div>`;
+            }
+            
+            html += '<h5>Últimos Atendimentos</h5><table class="table"><thead><tr><th>Cliente</th><th>Valor Bruto</th><th>Sua Comissão</th><th>Data</th></tr></thead><tbody>';
+            data.myAppointments.forEach(app => {
+                html += `<tr><td>${app.cliente}</td><td>R$ ${app.valorBruto.toFixed(2)}</td><td>R$ ${app.comissao.toFixed(2)}</td><td>${new Date(app.data).toLocaleDateString()}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            
+            container.innerHTML = html;
+            showLoading(false);
+        }
+
+        // ========== ATUALIZAÇÃO AUTOMÁTICA APÓS AÇÕES ==========
+        // Exemplo: se houver cadastro de novo atendimento, recarrega financeiro e agenda
+        function addAtendimento(novoAtendimento) {
+            atendimentos.push(novoAtendimento);
+            // Atualiza UI automaticamente
+            if (document.getElementById('financeiro').classList.contains('active')) {
+                renderFinanceiro();
+            }
+            if (document.getElementById('agenda').classList.contains('active')) {
+                const select = document.getElementById('profissionalSelect');
+                if (select) carregarAgendaProfissional(select.value);
+            }
+        }
+
+        // ========== INICIALIZAÇÃO ==========
+        function init() {
+            if (!loadCurrentUser()) return;
+
+            // Eventos
+            document.getElementById('logoutBtn').addEventListener('click', () => {
+                localStorage.removeItem('currentUser');
+                location.reload();
+            });
+            document.getElementById('syncAgendaBtn').addEventListener('click', syncGoogleCalendar);
+
+            // Carrega conteúdo conforme aba ativa
+            const agendaTab = document.getElementById('agenda-tab');
+            const financeiroTab = document.getElementById('financeiro-tab');
+
+            agendaTab.addEventListener('shown.bs.tab', () => {
+                renderAgenda();
+            });
+            financeiroTab.addEventListener('shown.bs.tab', () => {
+                renderFinanceiro();
+            });
+
+            // Aba inicial: agenda
+            renderAgenda();
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        init();
+    </script>
+</body>
+</html>
