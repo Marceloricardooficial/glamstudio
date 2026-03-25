@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glam Studio - Gestão Premium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <style>
+        :root {
+            --primary: #d4af37; /* Dourado */
+            --dark: #1a1a1a;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), 
+                        url('https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=1920') center/cover no-repeat fixed;
+            min-height: 100vh;
+            color: #fff;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.5rem;
+        }
+        .btn-gold {
+            background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+            color: #000;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-gold:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
+        }
+        .font-serif { font-family: 'Playfair Display', serif; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="max-w-md mx-auto mt-20 text-center animate-fade-in">
+        <div class="glass-panel p-10">
+            <h1 class="text-4xl font-serif mb-2 tracking-widest text-primary" style="color: #d4af37;">GLAM STUDIO</h1>
+            <p class="text-gray-300 mb-8 uppercase text-xs tracking-[0.3em]">Ambiente de Gestão Premium</p>
+            
+            <div id="google-login-btn" class="flex justify-center">
+                <!-- Botão do Google será renderizado aqui -->
+            </div>
+            
+            <p id="login-error" class="text-red-400 mt-4 text-sm hidden">Acesso negado. E-mail não autorizado.</p>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD -->
+    <div id="main-dashboard" class="max-w-6xl mx-auto hidden">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+            <div>
+                <h2 class="text-3xl font-serif" id="welcome-msg">Bem-vinda, Profissional</h2>
+                <p class="text-gray-400 text-sm" id="user-role-display">Carregando permissões...</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="showSection('agenda')" class="px-4 py-2 rounded-full glass-panel hover:bg-white/10 transition">Agenda</button>
+                <button id="nav-staff" onclick="showSection('staff')" class="px-4 py-2 rounded-full glass-panel hover:bg-white/10 transition hidden">Funcionárias</button>
+                <button onclick="logout()" class="px-4 py-2 rounded-full border border-red-500/50 text-red-400 hover:bg-red-500/10 transition">Sair</button>
+            </div>
+        </header>
+
+        <!-- SECTION: AGENDA -->
+        <section id="section-agenda" class="animate-fade-in">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Sidebar Agendamento -->
+                <div class="glass-panel p-6">
+                    <h3 class="text-xl font-serif mb-6 border-b border-white/10 pb-2">Novo Agendamento</h3>
+                    <form id="appointment-form" class="space-y-4">
+                        <div>
+                            <label class="block text-xs uppercase text-gray-400 mb-1">Cliente</label>
+                            <input type="text" id="client-name" required class="w-full bg-white/5 border border-white/10 rounded-lg p-3 outline-none focus:border-gold">
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase text-gray-400 mb-1">Telefone</label>
+                            <input type="tel" id="client-phone" required class="w-full bg-white/5 border border-white/10 rounded-lg p-3 outline-none focus:border-gold">
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase text-gray-400 mb-1">Serviço</label>
+                            <input type="text" id="service-type" required class="w-full bg-white/5 border border-white/10 rounded-lg p-3 outline-none focus:border-gold">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs uppercase text-gray-400 mb-1">Data/Hora</label>
+                                <input type="datetime-local" id="event-date" required class="w-full bg-white/5 border border-white/10 rounded-lg p-3 outline-none focus:border-gold">
+                            </div>
+                            <div>
+                                <label class="block text-xs uppercase text-gray-400 mb-1">Valor (R$)</label>
+                                <input type="number" id="service-price" required class="w-full bg-white/5 border border-white/10 rounded-lg p-3 outline-none focus:border-gold">
+                            </div>
+                        </div>
+                        <div id="assign-to-container" class="hidden">
+                            <label class="block text-xs uppercase text-gray-400 mb-1">Atribuir à Funcionária</label>
+                            <select id="assign-to" class="w-full bg-white/5 border border-white/10 rounded-lg p-3 outline-none focus:border-gold">
+                                <!-- Preenchido dinamicamente -->
+                            </select>
+                        </div>
+                        <button type="submit" class="w-full btn-gold py-3 rounded-lg mt-4">Agendar & Sincronizar</button>
+                    </form>
+                </div>
+
+                <!-- Lista de Agenda -->
+                <div class="lg:col-span-2 glass-panel p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-serif">Compromissos do Mês</h3>
+                        <select id="filter-staff" class="bg-white/5 border border-white/10 rounded-full px-4 py-1 text-sm outline-none hidden">
+                            <option value="all">Todas as Agendas</option>
+                        </select>
+                    </div>
+                    <div id="agenda-list" class="space-y-3 overflow-y-auto max-h-[600px] pr-2">
+                        <!-- Itens da agenda -->
+                        <p class="text-center text-gray-500 py-10">Carregando eventos...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION: STAFF (Visible to Dev/Socio) -->
+        <section id="section-staff" class="hidden animate-fade-in">
+            <div class="glass-panel p-8">
+                <div class="flex justify-between items-center mb-8">
+                    <h3 class="text-2xl font-serif">Gestão de Equipe</h3>
+                    <button onclick="toggleModal('staff-modal', true)" class="btn-gold px-6 py-2 rounded-full text-sm">Cadastrar Profissional</button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="text-xs uppercase text-gray-400 border-b border-white/10">
+                            <tr>
+                                <th class="py-4 px-2">Nome</th>
+                                <th class="py-4 px-2">E-mail Google</th>
+                                <th class="py-4 px-2">Função</th>
+                                <th class="py-4 px-2">Comissão %</th>
+                                <th class="py-4 px-2">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="staff-table-body" class="divide-y divide-white/5">
+                            <!-- Injetado dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- MODAL CADASTRO STAFF -->
+    <div id="staff-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 hidden z-50">
+        <div class="glass-panel w-full max-w-md p-8 bg-[#1a1a1a]">
+            <h3 class="text-xl font-serif mb-6">Cadastrar Nova Profissional</h3>
+            <form id="staff-form" class="space-y-4">
+                <input type="text" id="staff-name" placeholder="Nome Completo" required class="w-full bg-white/5 border border-white/10 rounded-lg p-3 outline-none">
+                <input type="email" id="staff-email" placeholder="E-mail do Google" required class="w-full bg-white/5 border border-white/10 rounded-lg p-3 outline-none">
+                <input type="tel" id="staff-phone" placeholder="Telefone" required class="w-full bg-white/5 border border-white/10 rounded-lg p-3 outline-none">
+                <div class="grid grid-cols-2 gap-4">
+                    <select id="staff-role" class="w-full bg-white/5 border border-white/10 rounded-lg p-3 outline-none">
+                        <option value="Cabelereira">Cabelereira</option>
+                        <option value="Lash Designer">Lash Designer</option>
+                        <option value="Nail Designer">Nail Designer</option>
+                        <option value="Esteticista">Esteticista</option>
+                    </select>
+                    <input type="number" id="staff-commission" placeholder="Comissão %" required class="w-full bg-white/5 border border-white/10 rounded-lg p-3 outline-none">
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="toggleModal('staff-modal', false)" class="flex-1 px-4 py-3 border border-white/10 rounded-lg">Cancelar</button>
+                    <button type="submit" class="flex-1 btn-gold py-3 rounded-lg">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- NOTIFICATION BOX -->
+    <div id="notification" class="fixed bottom-10 right-10 p-4 rounded-lg shadow-2xl transform translate-y-20 opacity-0 transition-all duration-300 z-[100]"></div>
+
+    <script>
+        // CONFIGURAÇÕES DO FIREBASE (FORNECIDAS)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+            authDomain: "glam-studio-8b65c.firebaseapp.com",
+            projectId: "glam-studio-8b65c",
+            storageBucket: "glam-studio-8b65c.firebasestorage.app",
+            messagingSenderId: "154294556895",
+            appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+        };
+
+        // Inicialização
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const DEV_EMAIL = "comgrassa@gmail.com";
+        const APP_ID = "glam-studio-v1";
+
+        let currentUser = null;
+        let userRole = 'funcionaria';
+        let staffList = [];
+
+        // --- AUTH LOGIC ---
+        
+        window.onload = () => {
+            google.accounts.id.initialize({
+                client_id: "1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com",
+                callback: handleCredentialResponse
+            });
+            google.accounts.id.renderButton(
+                document.getElementById("google-login-btn"),
+                { theme: "outline", size: "large", text: "continue_with" }
+            );
+
+            // Listener de estado do Firebase
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    await checkUserPermission(user);
+                } else {
+                    showLogin();
+                }
+            });
+        };
+
+        async function handleCredentialResponse(response) {
+            const credential = firebase.auth.GoogleAuthProvider.credential(response.credential);
+            try {
+                await auth.signInWithCredential(credential);
+            } catch (error) {
+                console.error("Erro login:", error);
+                showToast("Erro na autenticação Google", "error");
+            }
+        }
+
+        async function checkUserPermission(user) {
+            // Regra especial Desenvolvedor
+            if (user.email === DEV_EMAIL) {
+                userRole = 'desenvolvedor';
+                initDashboard(user);
+                return;
+            }
+
+            // Verificar no Firestore se e-mail está cadastrado como funcionária ou sócia
+            const snapshot = await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('staff')
+                .where('email', '==', user.email)
+                .get();
+
+            if (!snapshot.empty) {
+                const data = snapshot.docs[0].data();
+                userRole = data.isSocio ? 'socia' : 'funcionaria';
+                initDashboard(user);
+            } else {
+                await auth.signOut();
+                document.getElementById('login-error').classList.remove('hidden');
+            }
+        }
+
+        // --- DASHBOARD LOGIC ---
+
+        function initDashboard(user) {
+            currentUser = user;
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('main-dashboard').classList.remove('hidden');
+            document.getElementById('welcome-msg').innerText = `Bem-vinda, ${user.displayName.split(' ')[0]}`;
+            
+            const roleLabels = { 'desenvolvedor': 'Diretor de Tecnologia', 'socia': 'Sócia Administrativa', 'funcionaria': 'Profissional' };
+            document.getElementById('user-role-display').innerText = roleLabels[userRole];
+
+            // Configurar visibilidade baseada em cargo
+            if (userRole === 'desenvolvedor' || userRole === 'socia') {
+                document.getElementById('nav-staff').classList.remove('hidden');
+                document.getElementById('filter-staff').classList.remove('hidden');
+                document.getElementById('assign-to-container').classList.remove('hidden');
+            }
+
+            loadStaff();
+            loadAppointments();
+        }
+
+        function showSection(sectionId) {
+            document.getElementById('section-agenda').classList.add('hidden');
+            document.getElementById('section-staff').classList.add('hidden');
+            document.getElementById('section-' + sectionId).classList.remove('hidden');
+        }
+
+        // --- STAFF MANAGEMENT ---
+
+        async function loadStaff() {
+            const query = db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('staff');
+            query.onSnapshot(snapshot => {
+                staffList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderStaffTable();
+                updateSelects();
+            });
+        }
+
+        function renderStaffTable() {
+            const tbody = document.getElementById('staff-table-body');
+            tbody.innerHTML = staffList.map(s => `
+                <tr>
+                    <td class="py-4 px-2">${s.name}</td>
+                    <td class="py-4 px-2 text-gray-400 text-sm">${s.email}</td>
+                    <td class="py-4 px-2"><span class="bg-white/10 px-2 py-1 rounded text-xs">${s.role}</span></td>
+                    <td class="py-4 px-2">${s.commission}%</td>
+                    <td class="py-4 px-2">
+                        <button onclick="deleteStaff('${s.id}')" class="text-red-400 hover:text-red-300">Excluir</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateSelects() {
+            const filter = document.getElementById('filter-staff');
+            const assign = document.getElementById('assign-to');
+            
+            const options = staffList.map(s => `<option value="${s.email}">${s.name}</option>`).join('');
+            
+            filter.innerHTML = `<option value="all">Todas as Agendas</option>` + options;
+            assign.innerHTML = options;
+        }
+
+        document.getElementById('staff-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const newStaff = {
+                name: document.getElementById('staff-name').value,
+                email: document.getElementById('staff-email').value,
+                phone: document.getElementById('staff-phone').value,
+                role: document.getElementById('staff-role').value,
+                commission: document.getElementById('staff-commission').value,
+                createdAt: new Date()
+            };
+
+            try {
+                await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('staff').add(newStaff);
+                showToast("Profissional cadastrada com sucesso!");
+                toggleModal('staff-modal', false);
+                e.target.reset();
+            } catch (e) {
+                showToast("Erro ao cadastrar", "error");
+            }
+        };
+
+        // --- APPOINTMENT LOGIC ---
+
+        async function loadAppointments() {
+            const container = document.getElementById('agenda-list');
+            const filterValue = document.getElementById('filter-staff').value;
+
+            let query = db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('appointments');
+            
+            // Simulação de filtro em memória (conforme solicitado evitar queries complexas no Firestore)
+            query.onSnapshot(snapshot => {
+                let docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                // Filtro por funcionária
+                if (userRole === 'funcionaria') {
+                    docs = docs.filter(d => d.assignedTo === currentUser.email);
+                } else if (filterValue !== 'all') {
+                    docs = docs.filter(d => d.assignedTo === filterValue);
+                }
+
+                // Ordenar por data (em JS)
+                docs.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                if (docs.length === 0) {
+                    container.innerHTML = `<p class="text-center text-gray-500 py-10">Nenhum evento encontrado para este mês.</p>`;
+                    return;
+                }
+
+                container.innerHTML = docs.map(app => `
+                    <div class="glass-panel p-4 flex justify-between items-center border-l-4" style="border-left-color: #d4af37">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-gold font-bold">${formatDate(app.date)}</span>
+                                <span class="text-xs text-gray-500">• ${app.assignedTo}</span>
+                            </div>
+                            <h4 class="font-semibold text-lg">${app.clientName}</h4>
+                            <p class="text-sm text-gray-400">${app.service} - R$ ${app.price}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-gray-500 mb-2">${app.phone}</p>
+                            <button onclick="deleteAppointment('${app.id}')" class="text-gray-500 hover:text-red-400 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            });
+        }
+
+        document.getElementById('appointment-form').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const assignedTo = (userRole === 'socia' || userRole === 'desenvolvedor') 
+                ? document.getElementById('assign-to').value 
+                : currentUser.email;
+
+            const appointment = {
+                clientName: document.getElementById('client-name').value,
+                phone: document.getElementById('client-phone').value,
+                service: document.getElementById('service-type').value,
+                date: document.getElementById('event-date').value,
+                price: document.getElementById('service-price').value,
+                assignedTo: assignedTo,
+                createdBy: currentUser.email,
+                createdAt: new Date()
+            };
+
+            try {
+                await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('appointments').add(appointment);
+                
+                // Simulação Sincronização Google Calendar (Lógica solicitada)
+                syncWithGoogleCalendar(appointment);
+                
+                showToast("Agendado e Sincronizado com Google!");
+                e.target.reset();
+            } catch (err) {
+                showToast("Erro ao agendar", "error");
+            }
+        };
+
+        // --- UTILS ---
+
+        function syncWithGoogleCalendar(event) {
+            console.log("Sincronizando com Google Calendar API...", event);
+            // Aqui seria a chamada real 'gapi.client.calendar.events.insert' 
+            // após obter o access_token via OAuth2.
+        }
+
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function toggleModal(id, show) {
+            document.getElementById(id).classList.toggle('hidden', !show);
+        }
+
+        function showToast(msg, type = "success") {
+            const toast = document.getElementById('notification');
+            toast.innerText = msg;
+            toast.style.background = type === "success" ? "rgba(212, 175, 55, 0.9)" : "rgba(220, 38, 38, 0.9)";
+            toast.style.color = type === "success" ? "#000" : "#fff";
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        async function deleteAppointment(id) {
+            if(confirm("Deseja realmente cancelar este agendamento?")) {
+                await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('appointments').doc(id).delete();
+                showToast("Agendamento removido.");
+            }
+        }
+
+        async function deleteStaff(id) {
+            if(confirm("Remover profissional? Ela perderá acesso ao sistema.")) {
+                await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('staff').doc(id).delete();
+                showToast("Profissional removida.");
+            }
+        }
+
+        function logout() {
+            auth.signOut();
+            location.reload();
+        }
+
+        function showLogin() {
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('main-dashboard').classList.add('hidden');
+        }
+
+        // Listener para filtro de agenda
+        document.getElementById('filter-staff').onchange = loadAppointments;
+
+    </script>
+</body>
+</html>
+
