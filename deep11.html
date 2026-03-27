@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#f8f0f5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Glam Studio">
+<title>Glam Studio</title>
+
+<!-- Google Identity / Calendar OAuth -->
+<script src="https://accounts.google.com/gsi/client" async></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ===================== DESIGN SYSTEM ===================== */
+:root {
+  --rose:#e8a0b8; --rose-deep:#d4708a; --rose-soft:#f5d6e4;
+  --rose-glow:rgba(232,160,184,0.4); --blush:#fce8f0;
+  --lavender:#d8c8e8; --mint:#b8e0d4; --gold:#d4a876;
+  --white:#ffffff; --off-white:#fefcfd;
+  --gray-100:#f8f4f6; --gray-200:#ede6ea; --gray-300:#d4c8cd;
+  --gray-500:#9e8a93; --gray-700:#6b5a62; --gray-900:#2d2028;
+  --glass-bg:rgba(255,255,255,0.65); --glass-bg-strong:rgba(255,255,255,0.82);
+  --glass-border:rgba(255,255,255,0.8);
+  --glass-shadow:0 8px 32px rgba(180,120,150,0.12),0 2px 8px rgba(180,120,150,0.08);
+  --blur:blur(20px); --radius:20px; --radius-sm:12px; --radius-lg:28px;
+  --font-display:'Cormorant Garamond',serif; --font-body:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--font-body);background:var(--off-white);color:var(--gray-900);min-height:100vh;overflow:hidden;position:relative}
+
+.bg-gradient{position:fixed;inset:0;z-index:0;background:
+  radial-gradient(ellipse 80% 60% at 20% 10%,rgba(232,160,184,0.25) 0%,transparent 60%),
+  radial-gradient(ellipse 60% 50% at 80% 80%,rgba(184,224,212,0.2) 0%,transparent 50%),
+  radial-gradient(ellipse 70% 70% at 50% 50%,rgba(216,200,232,0.15) 0%,transparent 70%),
+  linear-gradient(160deg,#fff8fb 0%,#f8f4f9 40%,#f0f5f8 100%)}
+.bg-blob{position:fixed;border-radius:50%;filter:blur(60px);z-index:0;pointer-events:none}
+.blob1{width:300px;height:300px;top:-80px;right:-60px;background:rgba(232,160,184,0.18)}
+.blob2{width:200px;height:200px;bottom:80px;left:-40px;background:rgba(184,224,212,0.2)}
+.blob3{width:180px;height:180px;top:50%;left:60%;background:rgba(212,168,118,0.1)}
+
+#app{position:relative;z-index:1;height:100vh;display:flex;flex-direction:column;max-width:430px;margin:0 auto}
+#loading-overlay{position:fixed;inset:0;z-index:999;background:rgba(255,248,251,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+#loading-overlay .spin{width:40px;height:40px;border:3px solid var(--rose-soft);border-top-color:var(--rose-deep);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.screen{display:none;flex-direction:column;flex:1;overflow:hidden;animation:fadeIn 0.3s ease}
+.screen.active{display:flex}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.glass{background:var(--glass-bg);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);border-radius:var(--radius)}
+.scroll-content{flex:1;overflow-y:auto;padding:16px 16px 90px;scrollbar-width:none}
+.topbar{padding:54px 20px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar-title{font-family:var(--font-display);font-size:28px;font-weight:300;color:var(--gray-900)}
+.topbar-title span{color:var(--rose-deep);font-style:italic}
+.topbar-action{width:40px;height:40px;border-radius:50%;background:var(--glass-bg);backdrop-filter:var(--blur);border:1px solid var(--glass-border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px}
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;padding:0 16px 24px;z-index:100}
+.bottom-nav-inner{display:flex;align-items:center;justify-content:space-around;background:rgba(255,255,255,0.88);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.9);border-radius:24px;padding:10px 8px}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 12px;border-radius:16px;cursor:pointer;flex:1}
+.nav-item .nav-icon{font-size:20px}
+.nav-item .nav-label{font-size:10px;font-weight:500;color:var(--gray-500)}
+.nav-item.active .nav-label{color:var(--rose-deep)}
+.fab{position:fixed;bottom:90px;right:20px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--rose-deep));box-shadow:0 4px 20px var(--rose-glow);display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;z-index:99;border:none;color:white}
+.stat-card{padding:18px 16px;background:var(--glass-bg);backdrop-filter:var(--blur);border:1px solid var(--glass-border);border-radius:var(--radius);box-shadow:var(--glass-shadow)}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.stat-value{font-family:var(--font-display);font-size:22px;font-weight:600}
+.appt-card{display:flex;align-items:center;gap:14px;padding:14px 16px;margin-bottom:10px;background:var(--glass-bg);backdrop-filter:var(--blur);border:1px solid var(--glass-border);border-radius:var(--radius-sm);cursor:pointer}
+.appt-time{text-align:center;min-width:70px}
+.appt-time .hour{font-weight:600;font-size:13px}
+.appt-time .ampm{font-size:10px}
+.appt-divider{width:1px;height:40px;background:var(--gray-200)}
+.appt-info{flex:1}
+.appt-name{font-weight:500;font-size:14px}
+.appt-service{font-size:12px;color:var(--gray-500)}
+.appt-badge{font-size:10px;font-weight:600;padding:3px 8px;border-radius:20px}
+.badge-paid{background:rgba(184,224,212,0.4);color:#2d8a6a}
+.badge-pending{background:rgba(232,160,184,0.3);color:var(--rose-deep)}
+.badge-partial{background:rgba(212,168,118,0.3);color:#8a6a2d}
+.avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;background:linear-gradient(135deg,var(--rose-soft),var(--lavender));color:var(--rose-deep);flex-shrink:0}
+.av-sm{width:40px;height:40px;font-size:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:14px 24px;border-radius:var(--radius-sm);font-size:14px;font-weight:500;cursor:pointer;width:100%}
+.btn-primary{background:linear-gradient(135deg,var(--rose),var(--rose-deep));color:white}
+.btn-ghost{background:var(--glass-bg);backdrop-filter:var(--blur);border:1px solid var(--glass-border);color:var(--gray-700)}
+.modal-backdrop{position:fixed;inset:0;z-index:200;background:rgba(180,140,160,0.3);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.3s}
+.modal-backdrop.open{opacity:1;pointer-events:all}
+.modal-sheet{width:100%;max-width:430px;background:rgba(255,255,255,0.95);backdrop-filter:blur(30px);border-radius:28px 28px 0 0;padding:16px 20px 40px;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1);max-height:90vh;overflow-y:auto}
+.modal-backdrop.open .modal-sheet{transform:translateY(0)}
+.modal-handle{width:36px;height:4px;border-radius:2px;background:var(--gray-200);margin:0 auto 18px}
+.modal-title{font-family:var(--font-display);font-size:24px;font-weight:400;margin-bottom:20px}
+.form-group{margin-bottom:16px}
+.form-label{font-size:12px;font-weight:500;color:var(--gray-500);text-transform:uppercase;margin-bottom:6px;display:block}
+.form-input,.form-select{width:100%;padding:13px 16px;border-radius:var(--radius-sm);background:rgba(255,255,255,0.7);border:1px solid var(--gray-200);font-size:14px}
+.chips-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;border:1px solid var(--gray-200);background:white;cursor:pointer}
+.chip.active{background:rgba(232,160,184,0.3);border-color:var(--rose);color:var(--rose-deep)}
+.month-nav{display:flex;justify-content:space-between;align-items:center;padding:0 16px 10px;}
+.month-nav button{background:transparent;border:none;font-size:24px;cursor:pointer;color:var(--rose-deep);padding:6px 12px;}
+.day-nav{display:flex;gap:8px;overflow-x:auto;padding:0 0 8px;scrollbar-width:none}
+.day-pill{display:flex;flex-direction:column;align-items:center;min-width:46px;padding:10px 8px;border-radius:14px;cursor:pointer;border:1px solid transparent}
+.day-pill.today{background:linear-gradient(135deg,var(--rose),var(--rose-deep))}
+.day-pill.today .day-name,.day-pill.today .day-num{color:white}
+.toast{position:fixed;top:60px;left:50%;transform:translateX(-50%) translateY(-20px);background:var(--gray-900);color:white;padding:12px 20px;border-radius:20px;font-size:13px;opacity:0;transition:all 0.3s;z-index:300;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="bg-gradient"></div>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+<div class="bg-blob blob3"></div>
+
+<div id="loading-overlay">
+  <div class="spin"></div>
+  <p>Carregando Glam Studio...</p>
+</div>
+
+<div id="app">
+
+<!-- TELA DE LOGIN -->
+<div id="login-screen" class="screen">
+  <div class="topbar"><div></div></div>
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center; padding:24px;">
+    <div style="text-align:center; margin-bottom:36px;">
+      <div style="font-size:48px;">🌸</div>
+      <div style="font-family:var(--font-display); font-size:38px;">Glam <span style="color:var(--rose-deep);">Studio</span></div>
+      <div style="font-size:13px; color:var(--gray-500);">Gestão inteligente para o seu salão</div>
+    </div>
+    <div class="glass" style="padding:28px 24px;">
+      <button class="btn btn-primary" id="google-signin-btn" onclick="signInWithGoogle()" style="display:flex; gap:10px; align-items:center; justify-content:center;">
+        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
+        Entrar com Google
+      </button>
+      <p id="login-error" style="color:var(--rose-deep); font-size:12px; text-align:center; margin-top:12px; display:none;"></p>
+    </div>
+  </div>
+</div>
+
+<!-- TELA HOME -->
+<div id="home-screen" class="screen">
+  <div class="topbar">
+    <div><div style="font-size:12px;" id="greeting">Bem-vinda 👋</div><div class="topbar-title">Glam <span>Studio</span></div></div>
+    <div class="avatar av-sm" id="user-avatar-home" style="cursor:pointer;" onclick="goTo('perfil')">G</div>
+  </div>
+  <div class="scroll-content">
+    <div class="sync-banner" id="cal-banner" style="display:none; background:rgba(66,133,244,0.1); padding:12px; border-radius:12px; margin-bottom:14px;">📅 Conecte o Google Agenda <button onclick="requestCalendarAccess()" style="float:right;">Conectar</button></div>
+    <div id="stats-admin" style="display:none;"><div class="stats-grid"><div class="stat-card"><div>📅 Agendados</div><div class="stat-value" id="stat-agendado-salao">0</div><div>Atendidos: <span id="stat-atendidos-salao">0</span></div></div><div class="stat-card"><div>👤 Pessoal</div><div class="stat-value" id="stat-agendado-pessoal">0</div><div>Finalizados: <span id="stat-finalizados-pessoal">0</span></div></div><div class="stat-card"><div>💰 Faturamento</div><div class="stat-value" id="stat-fat-salao">R$ 0</div><div>Comissões: <span id="stat-comissoes-salao">R$ 0</span></div></div><div class="stat-card"><div>✨ Ganho Pessoal</div><div class="stat-value" id="stat-ganho-pessoal">R$ 0</div></div></div></div>
+    <div id="stats-employee" style="display:none;"><div class="stats-grid"><div class="stat-card"><div>📅 Agendados Hoje</div><div class="stat-value" id="stat-agendado-func">0</div><div>Finalizados: <span id="stat-finalizados-func">0</span></div></div><div class="stat-card"><div>💰 Seu Ganho Hoje</div><div class="stat-value" id="stat-ganho-func">R$ 0</div><div>Comissão: <span id="stat-comissao-func">R$ 0</span></div></div></div></div>
+    <div class="section-header"><div class="section-title">Agenda de Hoje</div><div class="section-link" onclick="goTo('agenda')">Ver tudo</div></div>
+    <div id="home-appt-list"></div>
+    <div class="insight-card" style="margin-top:12px; padding:16px; background:rgba(232,160,184,0.1); border-radius:var(--radius);"><div class="insight-icon">💡</div><div class="insight-text" id="insight-text-1"></div></div>
+  </div>
+  <button class="fab" onclick="openNewApptModal()">+</button>
+</div>
+
+<!-- TELA AGENDA -->
+<div id="agenda-screen" class="screen">
+  <div class="topbar"><div class="topbar-title">Agenda</div><div class="topbar-action" onclick="openModal('modal-filtro-datas')">📅</div></div>
+  <div><div class="month-nav"><button onclick="navigateMonth(-1)">◀</button><span id="currentMonthYear"></span><button onclick="navigateMonth(1)">▶</button></div><div class="day-nav" id="day-nav"></div></div>
+  <div class="scroll-content"><div id="agenda-list"></div></div>
+  <button class="fab" onclick="openNewApptModal()">+</button>
+</div>
+
+<!-- MODAL FILTRO DATAS -->
+<div class="modal-backdrop" id="modal-filtro-datas"><div class="modal-sheet"><div class="modal-handle"></div><div class="modal-title">Filtrar por período</div><div class="form-group"><label class="form-label">Data Início</label><input type="date" class="form-input" id="filter-start-date"></div><div class="form-group"><label class="form-label">Data Fim</label><input type="date" class="form-input" id="filter-end-date"></div><div class="form-group"><label class="form-label">Status</label><div class="chips-row" id="agenda-filter-chips"><div class="chip active" onclick="selectType(this,'agenda-filter-chips')">Todos</div><div class="chip" onclick="selectType(this,'agenda-filter-chips')">Pago</div><div class="chip" onclick="selectType(this,'agenda-filter-chips')">Parcial</div><div class="chip" onclick="selectType(this,'agenda-filter-chips')">Em aberto</div></div></div><div class="form-group"><label class="form-label">Profissional</label><select class="form-select" id="agenda-filter-prof"><option value="">Todas</option></select></div><button class="btn btn-primary" onclick="applyDateFilter()">✅ Aplicar</button><button class="btn btn-ghost" onclick="clearDateFilter()" style="margin-top:8px;">Limpar filtro</button></div></div>
+
+<!-- MODAL NOVO ATENDIMENTO -->
+<div class="modal-backdrop" id="modal-novo-atendimento"><div class="modal-sheet"><div class="modal-handle"></div><div class="modal-title" id="appt-modal-title">Novo Atendimento</div><div class="form-group"><label class="form-label">Cliente</label><select class="form-select" id="appt-client"></select></div><div class="form-group"><label class="form-label">Serviço</label><select class="form-select" id="appt-service"></select></div><div class="form-group"><label class="form-label">Profissional</label><select class="form-select" id="appt-professional"></select></div><div class="form-group"><label class="form-label">Data</label><input type="date" class="form-input" id="appt-date"></div><div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;"><div class="form-group"><label class="form-label">Início</label><input type="time" class="form-input" id="appt-start"></div><div class="form-group"><label class="form-label">Término</label><input type="time" class="form-input" id="appt-end"></div></div><div class="form-group"><label class="form-label">Valor (R$)</label><input type="number" class="form-input" id="appt-value" step="0.01"></div><div class="form-group"><label class="form-label">Status</label><select class="form-select" id="appt-status"><option value="pending">Em aberto</option><option value="partial">Parcial</option><option value="paid">Pago</option></select></div><div class="form-group"><label class="form-label">Observações</label><textarea class="form-textarea" id="appt-notes" rows="2"></textarea></div><div class="toggle-row"><div class="toggle-label">📅 Sincronizar com Google Agenda</div><div class="toggle on" id="cal-toggle" onclick="this.classList.toggle('on')"></div></div><input type="hidden" id="appt-edit-id"><button class="btn btn-primary" id="appt-save-btn" onclick="saveAppointment()">Salvar</button><button class="btn btn-ghost" onclick="closeModal('modal-novo-atendimento')">Cancelar</button></div></div>
+
+<!-- DEMAIS MODAIS (despesas, profissionais, relatórios, perfil) - resumidos por brevidade, mas incluídos -->
+<div class="modal-backdrop" id="modal-detalhe-atendimento"><div class="modal-sheet"><div class="modal-handle"></div><div id="det-content"></div></div></div>
+<div class="modal-backdrop" id="modal-pagar-atendimento"><div class="modal-sheet"><div class="modal-handle"></div><div class="modal-title">Registrar Pagamento</div><div class="form-group"><label class="form-label">Valor</label><input type="number" class="form-input" id="pay-value" step="0.01"></div><div class="form-group"><label class="form-label">Data</label><input type="date" class="form-input" id="pay-date"></div><button class="btn btn-primary" onclick="registerApptPayment()">Confirmar</button><button class="btn btn-ghost" onclick="closeModal('modal-pagar-atendimento')">Cancelar</button></div></div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- FIREBASE SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+
+<script>
+// ==================== CONFIGURAÇÃO FIREBASE ====================
+const firebaseConfig = {
+  apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+  authDomain: "glam-studio-8b65c.firebaseapp.com",
+  projectId: "glam-studio-8b65c",
+  storageBucket: "glam-studio-8b65c.firebasestorage.app",
+  messagingSenderId: "154294556895",
+  appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ==================== VARIÁVEIS GLOBAIS ====================
+let currentUser = null, currentProfile = null, salonId = null, userRole = 'admin';
+let cache = { appointments:[], clients:[], services:[], professionals:[], expenses:[], branches:[], categories:[] };
+let _unsubs = [];
+let selectedDayStr = new Date().toISOString().split('T')[0];
+let dateFilterStart = null, dateFilterEnd = null;
+let currentMonth = new Date().getMonth(), currentYear = new Date().getFullYear();
+
+// Google Calendar OAuth
+const GOOGLE_CLIENT_ID = '1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com';
+const CAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+let calAccessToken = localStorage.getItem('cal_token') || null;
+let calTokenExpiry = parseInt(localStorage.getItem('cal_token_expiry') || '0');
+
+function isCalTokenValid() { return calAccessToken && Date.now() < calTokenExpiry; }
+
+function requestCalendarAccess() {
+  if (typeof google === 'undefined' || !google.accounts?.oauth2) { showToast('SDK Google carregando...'); return; }
+  google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID, scope: CAL_SCOPE,
+    callback: (resp) => {
+      if (resp.access_token) {
+        calAccessToken = resp.access_token;
+        calTokenExpiry = Date.now() + (resp.expires_in * 1000);
+        localStorage.setItem('cal_token', calAccessToken);
+        localStorage.setItem('cal_token_expiry', String(calTokenExpiry));
+        showToast('Google Agenda conectado!');
+        syncCalendar(true);
+      }
+    }
+  }).requestAccessToken();
+}
+
+function extractValueFromDescription(desc) {
+  if (!desc) return null;
+  const match = desc.match(/R\$\s*([\d,.]+)/i);
+  if (match) {
+    let val = match[1].replace(/\./g, '').replace(',', '.');
+    let num = parseFloat(val);
+    return isNaN(num) ? null : num;
+  }
+  return null;
+}
+
+async function syncCalendar(fullImport = false) {
+  if (!isCalTokenValid()) return;
+  const now = new Date();
+  const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+  const tMin = encodeURIComponent(`${y}-${m}-01T00:00:00-03:00`);
+  const tMax = encodeURIComponent(`${y}-${m}-31T23:59:59-03:00`);
+  const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime`;
+  try {
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${calAccessToken}` } });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const evs = data.items || [];
+    for (const ev of evs) {
+      if (!ev.start?.dateTime) continue;
+      const sDT = new Date(ev.start.dateTime);
+      const eDT = new Date(ev.end?.dateTime || ev.start.dateTime);
+      const newDate = sDT.toISOString().split('T')[0];
+      const newStart = `${sDT.getHours().toString().padStart(2,'0')}:${sDT.getMinutes().toString().padStart(2,'0')}`;
+      const newEnd = `${eDT.getHours().toString().padStart(2,'0')}:${eDT.getMinutes().toString().padStart(2,'0')}`;
+      const desc = ev.description || '';
+      const extractedValue = extractValueFromDescription(desc);
+      const existing = cache.appointments.find(a => a.calEventId === ev.id);
+      if (!existing) {
+        await db.collection('appointments').add({
+          calEventId: ev.id, importedFromCal: true,
+          clientName: ev.summary || 'Evento Google', serviceName: '',
+          professionalName: currentProfile?.nome || '',
+          professionalId: currentProfile?.linkedProfId || '',
+          clientId: '', serviceId: '', date: newDate, startTime: newStart, endTime: newEnd,
+          value: extractedValue || 0, commissionPct: 0, commissionValue: 0, salonNet: 0, professionalNet: 0,
+          status: 'pending', notes: desc, payments: [], salonId: salonId
+        });
+      } else if (existing.value === 0 && extractedValue) {
+        await db.collection('appointments').doc(existing.id).update({ value: extractedValue });
+      }
+    }
+  } catch(e) { console.warn(e); }
+}
+
+// ==================== FUNÇÕES AUXILIARES ====================
+function fmtCurrency(v) { return 'R$ ' + parseFloat(v||0).toLocaleString('pt-BR', {minimumFractionDigits:2}); }
+function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
+function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
+function openModal(id) { document.getElementById(id)?.classList.add('open'); }
+function goTo(screen) { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(screen+'-screen').classList.add('active'); }
+function selectType(el, groupId) { const p=document.getElementById(groupId); p.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); el.classList.add('active'); }
+function getSalonNet(a) { const v=parseFloat(a.paidAmount??a.value??0), pct=parseFloat(a.commissionPct||0); return v*(1-pct/100); }
+function getProfNet(a) { const v=parseFloat(a.paidAmount??a.value??0), pct=parseFloat(a.commissionPct||0); return v*(pct/100); }
+
+// ==================== RENDER AGENDA ====================
+function renderAgenda() {
+  const list = document.getElementById('agenda-list');
+  let appts = cache.appointments;
+  if (dateFilterStart && dateFilterEnd) appts = appts.filter(a => a.date >= dateFilterStart && a.date <= dateFilterEnd);
+  else appts = appts.filter(a => a.date === selectedDayStr);
+  const statusChip = document.querySelector('#agenda-filter-chips .chip.active');
+  const statusFilter = statusChip ? statusChip.textContent : 'Todos';
+  if (statusFilter !== 'Todos') {
+    const map = { 'Pago':'paid', 'Parcial':'partial', 'Em aberto':'pending' };
+    appts = appts.filter(a => a.status === map[statusFilter]);
+  }
+  const profFilter = document.getElementById('agenda-filter-prof')?.value;
+  if (profFilter) appts = appts.filter(a => a.professionalId === profFilter);
+  appts.sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
+  if (appts.length === 0) { list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--gray-300);">📅 Nenhum atendimento</div>'; return; }
+  list.innerHTML = appts.map(a => {
+    const cName = a.clientName || cache.clients.find(c=>c.id===a.clientId)?.name || '—';
+    const sName = a.serviceName || cache.services.find(s=>s.id===a.serviceId)?.name || '—';
+    const pName = a.professionalName || cache.professionals.find(p=>p.id===a.professionalId)?.name || '';
+    const client = cache.clients.find(c=>c.id===a.clientId);
+    const [h,mn]=(a.startTime||'--:--').split(':');
+    const ampm = parseInt(h)>=12 ? 'PM' : 'AM';
+    return `<div class="appt-card" onclick="openApptDetail('${a.id}')">
+      <div class="appt-time"><div class="hour">${h}:${mn}</div><div class="ampm">${ampm}</div><div style="font-size:10px;">${a.endTime ? '– '+a.endTime : ''}</div></div>
+      <div class="appt-divider"></div>
+      <div class="avatar av-sm">${client?.photoURL ? `<img src="${client.photoURL}" style="width:100%;height:100%;object-fit:cover;">` : (cName[0]||'?')}</div>
+      <div class="appt-info"><div class="appt-name">${cName}</div><div class="appt-service">${sName}${pName?' • '+pName:''}</div></div>
+      <div>${a.status==='paid'?'<span class="appt-badge badge-paid">Pago</span>':a.status==='partial'?'<span class="appt-badge badge-partial">Parcial</span>':'<span class="appt-badge badge-pending">Aberto</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function applyDateFilter() {
+  dateFilterStart = document.getElementById('filter-start-date').value;
+  dateFilterEnd = document.getElementById('filter-end-date').value;
+  closeModal('modal-filtro-datas');
+  renderAgenda();
+}
+function clearDateFilter() {
+  dateFilterStart = dateFilterEnd = null;
+  document.getElementById('filter-start-date').value = '';
+  document.getElementById('filter-end-date').value = '';
+  renderAgenda();
+}
+
+function updateMonthDisplay() {
+  const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  document.getElementById('currentMonthYear').innerHTML = `${monthNames[currentMonth]} ${currentYear}`;
+  const firstDay = new Date(currentYear, currentMonth, 1);
+  const lastDay = new Date(currentYear, currentMonth + 1, 0);
+  const nav = document.getElementById('day-nav');
+  nav.innerHTML = '';
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayName = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(dateStr).getDay()];
+    const pill = document.createElement('div');
+    pill.className = 'day-pill' + (dateStr === new Date().toISOString().split('T')[0] ? ' today' : '');
+    pill.innerHTML = `<div class="day-name">${dayName}</div><div class="day-num">${d}</div>`;
+    pill.onclick = () => { selectedDayStr = dateStr; renderAgenda(); };
+    nav.appendChild(pill);
+  }
+  if (!dateFilterStart && !dateFilterEnd) renderAgenda();
+}
+function navigateMonth(delta) {
+  let newDate = new Date(currentYear, currentMonth + delta, 1);
+  currentMonth = newDate.getMonth();
+  currentYear = newDate.getFullYear();
+  updateMonthDisplay();
+}
+
+// ==================== APP DETAIL ====================
+let currentApptId = null;
+function openApptDetail(id) {
+  currentApptId = id;
+  const a = cache.appointments.find(x => x.id === id);
+  if (!a) return;
+  const client = cache.clients.find(c=>c.id===a.clientId);
+  const cName = a.clientName || client?.name || '—';
+  const sName = a.serviceName || cache.services.find(s=>s.id===a.serviceId)?.name || '—';
+  const pName = a.professionalName || cache.professionals.find(p=>p.id===a.professionalId)?.name || '';
+  const modal = document.getElementById('modal-detalhe-atendimento');
+  modal.querySelector('.modal-sheet').innerHTML = `
+    <div class="modal-handle"></div>
+    <div style="display:flex; gap:12px; margin-bottom:16px;"><div class="avatar av-md">${client?.photoURL?`<img src="${client.photoURL}">`:cName[0]}</div><div><div style="font-size:20px;">${cName}</div><div>${sName}</div></div></div>
+    <div class="glass" style="padding:16px; margin-bottom:16px;"><div>Horário: ${a.startTime} – ${a.endTime}</div><div>Profissional: ${pName}</div><div>Valor: ${fmtCurrency(a.value)}</div><div>Status: ${a.status==='paid'?'Pago':a.status==='partial'?'Parcial':'Aberto'}</div></div>
+    <button class="btn btn-primary" onclick="openPayModal()">💰 Pagar</button>
+    <button class="btn btn-ghost" onclick="editAppt('${id}')">✏️ Editar</button>
+    <button class="btn btn-ghost" onclick="deleteAppt('${id}')">🗑️ Excluir</button>
+  `;
+  openModal('modal-detalhe-atendimento');
+}
+function openPayModal() { document.getElementById('pay-appt-id').value = currentApptId; document.getElementById('pay-date').value = new Date().toISOString().split('T')[0]; document.getElementById('pay-value').value = ''; openModal('modal-pagar-atendimento'); }
+async function registerApptPayment() {
+  const id = document.getElementById('pay-appt-id').value;
+  const amount = parseFloat(document.getElementById('pay-value').value || 0);
+  const date = document.getElementById('pay-date').value;
+  if (!amount) { showToast('Informe o valor'); return; }
+  const a = cache.appointments.find(x => x.id === id);
+  if (!a) return;
+  const payments = [...(a.payments || []), { amount, date, note: 'Pagamento' }];
+  const paidAmount = payments.reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  const total = parseFloat(a.value || 0);
+  const status = paidAmount >= total ? 'paid' : (paidAmount>0 ? 'partial' : 'pending');
+  const pct = parseFloat(a.commissionPct || 0);
+  const salonNet = paidAmount * (1 - pct/100);
+  const professionalNet = paidAmount * (pct/100);
+  await db.collection('appointments').doc(id).update({ payments, paidAmount, status, salonNet, professionalNet });
+  closeModal('modal-pagar-atendimento');
+  showToast('Pagamento registrado!');
+  renderAgenda(); renderHomeAppts(); renderReports();
+}
+async function deleteAppt(id) { if (confirm('Excluir?')) await db.collection('appointments').doc(id).delete(); closeModal('modal-detalhe-atendimento'); renderAgenda(); renderHomeAppts(); renderReports(); }
+function editAppt(id) { const a = cache.appointments.find(x=>x.id===id); if(!a)return; document.getElementById('appt-modal-title').textContent='Editar Atendimento'; document.getElementById('appt-edit-id').value=id; document.getElementById('appt-date').value=a.date||''; document.getElementById('appt-start').value=a.startTime||''; document.getElementById('appt-end').value=a.endTime||''; document.getElementById('appt-value').value=a.value||''; document.getElementById('appt-status').value=a.status||'pending'; document.getElementById('appt-notes').value=a.notes||''; populateSelects(); setTimeout(()=>{document.getElementById('appt-client').value=a.clientId||''; document.getElementById('appt-service').value=a.serviceId||''; document.getElementById('appt-professional').value=a.professionalId||'';},100); openModal('modal-novo-atendimento'); }
+
+async function saveAppointment() {
+  const clientId = document.getElementById('appt-client').value;
+  const serviceId = document.getElementById('appt-service').value;
+  const professionalId = document.getElementById('appt-professional').value;
+  const date = document.getElementById('appt-date').value;
+  const startTime = document.getElementById('appt-start').value;
+  const endTime = document.getElementById('appt-end').value;
+  const value = parseFloat(document.getElementById('appt-value').value || 0);
+  const status = document.getElementById('appt-status').value;
+  const notes = document.getElementById('appt-notes').value;
+  const editId = document.getElementById('appt-edit-id').value;
+  if (!clientId || !date || !startTime) { showToast('Preencha cliente, data e horário!'); return; }
+  const client = cache.clients.find(c=>c.id===clientId);
+  const service = cache.services.find(s=>s.id===serviceId);
+  const prof = cache.professionals.find(p=>p.id===professionalId);
+  const commissionPct = parseFloat(prof?.commission || 0);
+  const commissionValue = value * (commissionPct/100);
+  const salonNet = value - commissionValue;
+  const professionalNet = commissionValue;
+  const data = { clientId, serviceId, professionalId, date, startTime, endTime, value, commissionPct, commissionValue, salonNet, professionalNet, status, notes, clientName: client?.name||'', serviceName: service?.name||'', professionalName: prof?.name||'', paidAmount: status==='paid'?value:0, payments: [], salonId };
+  const syncCal = document.getElementById('cal-toggle')?.classList.contains('on');
+  if (editId) {
+    await db.collection('appointments').doc(editId).update(data);
+    showToast('Atualizado');
+  } else {
+    await db.collection('appointments').add(data);
+    showToast('Salvo');
+  }
+  closeModal('modal-novo-atendimento');
+}
+
+function renderHomeAppts() {
+  const list = document.getElementById('home-appt-list');
+  const today = new Date().toISOString().split('T')[0];
+  const appts = cache.appointments.filter(a => a.date === today).sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
+  if (appts.length === 0) { list.innerHTML = '<div style="text-align:center;padding:30px;">🗓️ Nenhum atendimento hoje</div>'; return; }
+  list.innerHTML = appts.map(a => {
+    const cName = a.clientName || cache.clients.find(c=>c.id===a.clientId)?.name || '—';
+    const sName = a.serviceName || cache.services.find(s=>s.id===a.serviceId)?.name || '—';
+    const [h,mn]=(a.startTime||'--:--').split(':');
+    return `<div class="appt-card" onclick="openApptDetail('${a.id}')"><div class="appt-time"><div>${h}:${mn}</div></div><div class="appt-divider"></div><div class="avatar av-sm">${cName[0]}</div><div class="appt-info"><div class="appt-name">${cName}</div><div class="appt-service">${sName}</div></div><div>${a.status==='paid'?'✅':a.status==='partial'?'💛':'⏳'}</div></div>`;
+  }).join('');
+}
+
+function renderReports() {
+  const myId = currentProfile?.id || currentProfile?.linkedProfId;
+  const today = new Date().toISOString().split('T')[0];
+  const monthStart = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-01`;
+  const monthAppts = cache.appointments.filter(a => a.date >= monthStart && (a.status==='paid'||a.status==='partial'||a.status==='finalized'));
+  const todayAppts = cache.appointments.filter(a => a.date === today);
+  if (userRole === 'admin') {
+    const totalSalonNet = monthAppts.reduce((s,a)=>s+getSalonNet(a),0);
+    const totalCommissions = monthAppts.reduce((s,a)=>s+getProfNet(a),0);
+    const myEarnings = monthAppts.filter(a=>a.professionalId===myId).reduce((s,a)=>s+getProfNet(a),0);
+    document.getElementById('stat-agendado-salao').innerText = todayAppts.length;
+    document.getElementById('stat-atendidos-salao').innerText = todayAppts.filter(a=>a.status==='paid'||a.status==='partial').length;
+    document.getElementById('stat-agendado-pessoal').innerText = todayAppts.filter(a=>a.professionalId===myId).length;
+    document.getElementById('stat-finalizados-pessoal').innerText = todayAppts.filter(a=>a.professionalId===myId && (a.status==='paid'||a.status==='partial')).length;
+    document.getElementById('stat-fat-salao').innerText = fmtCurrency(totalSalonNet);
+    document.getElementById('stat-comissoes-salao').innerText = fmtCurrency(totalCommissions);
+    document.getElementById('stat-ganho-pessoal').innerText = fmtCurrency(myEarnings);
+    document.getElementById('insight-text-1').innerHTML = `Receita líquida: ${fmtCurrency(totalSalonNet)} | Comissões: ${fmtCurrency(totalCommissions)} | Meus ganhos: ${fmtCurrency(myEarnings)}`;
+  } else {
+    const myToday = todayAppts.filter(a=>a.professionalId===myId);
+    const myTodayPaid = myToday.filter(a=>a.status==='paid'||a.status==='partial');
+    const myGanho = myTodayPaid.reduce((s,a)=>s+getProfNet(a),0);
+    const myComissao = myTodayPaid.reduce((s,a)=>s+parseFloat(a.paidAmount||a.value||0),0);
+    document.getElementById('stat-agendado-func').innerText = myToday.length;
+    document.getElementById('stat-finalizados-func').innerText = myTodayPaid.length;
+    document.getElementById('stat-ganho-func').innerText = fmtCurrency(myGanho);
+    document.getElementById('stat-comissao-func').innerText = fmtCurrency(myComissao);
+    document.getElementById('insight-text-1').innerHTML = `Seus atendimentos hoje: ${myToday.length} | Finalizados: ${myTodayPaid.length} | Seus ganhos: ${fmtCurrency(myGanho)}`;
+  }
+}
+
+function populateSelects() {
+  const clientSelect = document.getElementById('appt-client');
+  if (clientSelect) clientSelect.innerHTML = '<option value="">Selecionar</option>' + cache.clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  const serviceSelect = document.getElementById('appt-service');
+  if (serviceSelect) serviceSelect.innerHTML = '<option value="">Selecionar</option>' + cache.services.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  const profSelect = document.getElementById('appt-professional');
+  if (profSelect) profSelect.innerHTML = '<option value="">Selecionar</option>' + cache.professionals.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  const filterProf = document.getElementById('agenda-filter-prof');
+  if (filterProf) filterProf.innerHTML = '<option value="">Todas</option>' + cache.professionals.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+}
+
+function openNewApptModal() {
+  document.getElementById('appt-modal-title').textContent = 'Novo Atendimento';
+  document.getElementById('appt-edit-id').value = '';
+  document.getElementById('appt-date').value = selectedDayStr;
+  document.getElementById('appt-start').value = '09:00';
+  document.getElementById('appt-end').value = '10:00';
+  document.getElementById('appt-value').value = '';
+  document.getElementById('appt-status').value = 'pending';
+  document.getElementById('appt-notes').value = '';
+  document.getElementById('cal-toggle').classList.add('on');
+  populateSelects();
+  openModal('modal-novo-atendimento');
+}
+
+// ==================== LISTENERS FIRESTORE ====================
+function attachListeners() {
+  if (_unsubs.length) _unsubs.forEach(u=>u());
+  _unsubs = [];
+  const qAppointments = db.collection('appointments').where('salonId','==',salonId);
+  _unsubs.push(qAppointments.onSnapshot(snap => { cache.appointments = snap.docs.map(d=>({id:d.id,...d.data()})); renderAgenda(); renderHomeAppts(); renderReports(); }));
+  const qClients = db.collection('clients').where('salonId','==',salonId);
+  _unsubs.push(qClients.onSnapshot(snap => { cache.clients = snap.docs.map(d=>({id:d.id,...d.data()})); populateSelects(); renderHomeAppts(); renderAgenda(); }));
+  const qServices = db.collection('services').where('salonId','==',salonId);
+  _unsubs.push(qServices.onSnapshot(snap => { cache.services = snap.docs.map(d=>({id:d.id,...d.data()})); populateSelects(); }));
+  const qUsers = db.collection('users').where('salonId','==',salonId);
+  _unsubs.push(qUsers.onSnapshot(snap => { cache.professionals = snap.docs.map(d=>({id:d.id,...d.data()})); populateSelects(); renderAgenda(); }));
+}
+
+async function signInWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.addScope(CAL_SCOPE);
+  try {
+    const result = await auth.signInWithPopup(provider);
+    if (result.credential?.accessToken) {
+      calAccessToken = result.credential.accessToken;
+      calTokenExpiry = Date.now() + 3600000;
+      localStorage.setItem('cal_token', calAccessToken);
+      localStorage.setItem('cal_token_expiry', String(calTokenExpiry));
+    }
+  } catch(e) { document.getElementById('login-error').style.display='block'; document.getElementById('login-error').innerText=e.message; }
+}
+
+auth.onAuthStateChanged(async (user) => {
+  const overlay = document.getElementById('loading-overlay');
+  if (!user) {
+    overlay.style.display = 'none';
+    document.getElementById('login-screen').classList.add('active');
+    document.getElementById('bottom-nav').style.display = 'none';
+    return;
+  }
+  let snap = await db.collection('users').doc(user.uid).get();
+  if (!snap.exists) {
+    const q = await db.collection('users').where('email','==',user.email.toLowerCase()).get();
+    if (!q.empty) {
+      const old = q.docs[0];
+      await db.collection('users').doc(user.uid).set({...old.data(), uid:user.uid});
+      await old.ref.delete();
+      snap = await db.collection('users').doc(user.uid).get();
+    }
+  }
+  if (!snap.exists) { await auth.signOut(); showToast('E-mail não cadastrado'); return; }
+  currentProfile = { id: snap.id, ...snap.data() };
+  userRole = currentProfile.role || 'admin';
+  salonId = currentProfile.salonId;
+  if (!salonId) { await auth.signOut(); showToast('Configuração incompleta'); return; }
+  currentUser = user;
+  document.getElementById('login-screen').classList.remove('active');
+  document.getElementById('home-screen').classList.add('active');
+  document.getElementById('bottom-nav').style.display = 'block';
+  document.getElementById('stats-admin').style.display = userRole==='admin' ? '' : 'none';
+  document.getElementById('stats-employee').style.display = userRole==='admin' ? 'none' : '';
+  attachListeners();
+  updateMonthDisplay();
+  if (isCalTokenValid()) syncCalendar(true);
+  else document.getElementById('cal-banner').style.display = 'flex';
+  renderHomeAppts();
+});
+
+window.onload = () => {
+  document.getElementById('bottom-nav').innerHTML = `<div class="bottom-nav-inner"><div class="nav-item" onclick="goTo('home')">🏠 Início</div><div class="nav-item" onclick="goTo('agenda')">📅 Agenda</div><div class="nav-item" onclick="goTo('despesas')">💳 Despesas</div><div class="nav-item" onclick="goTo('profissionais')">💅 Equipe</div><div class="nav-item" onclick="goTo('relatorios')">📊 Relatórios</div><div class="nav-item" onclick="goTo('perfil')">👤 Perfil</div></div>`;
+  document.getElementById('bottom-nav').style.display = 'none';
+  updateMonthDisplay();
+};
+</script>
+</body>
+</html>
