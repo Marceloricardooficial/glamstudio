@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Glam Agenda</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== RESET & BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --pink: #f472b6;
+    --pink-light: #fce7f3;
+    --pink-soft: #fbcfe8;
+    --pink-glow: rgba(244,114,182,0.35);
+    --white: #ffffff;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-400: #9ca3af;
+    --gray-600: #4b5563;
+    --gray-800: #1f2937;
+    --glass-bg: rgba(255,255,255,0.72);
+    --glass-border: rgba(255,255,255,0.9);
+    --shadow-soft: 0 4px 24px rgba(244,114,182,0.10), 0 1px 4px rgba(0,0,0,0.06);
+    --shadow-card: 0 8px 32px rgba(244,114,182,0.12), 0 2px 8px rgba(0,0,0,0.07);
+    --radius: 20px;
+    --radius-sm: 12px;
+    --nav-h: 72px;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #fff5f9 0%, #f9fafb 50%, #fdf2f8 100%);
+    color: var(--gray-800);
+    overflow: hidden;
+  }
+
+  /* ===== SCREENS ===== */
+  .screen {
+    position: fixed; inset: 0;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .screen.active { display: flex; }
+
+  /* ===== SCROLLABLE BODY ===== */
+  .screen-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: calc(var(--nav-h) + 16px);
+    -webkit-overflow-scrolling: touch;
+  }
+  .screen-body::-webkit-scrollbar { display: none; }
+
+  /* ===== TOP BAR ===== */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px 12px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--glass-border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar-title {
+    font-size: 18px; font-weight: 600; color: var(--gray-800);
+    letter-spacing: -0.3px;
+  }
+  .topbar-back {
+    width: 36px; height: 36px; border-radius: 50%; background: var(--glass-bg);
+    border: 1px solid var(--glass-border); display: flex; align-items: center;
+    justify-content: center; cursor: pointer; font-size: 18px; color: var(--gray-600);
+    box-shadow: var(--shadow-soft);
+    transition: transform 0.15s;
+  }
+  .topbar-back:active { transform: scale(0.93); }
+  .topbar-action {
+    width: 36px; height: 36px; border-radius: 50%; background: var(--pink-light);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px; transition: transform 0.15s;
+  }
+  .topbar-action:active { transform: scale(0.93); }
+
+  /* ===== BOTTOM NAV ===== */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: var(--nav-h);
+    background: var(--glass-bg);
+    backdrop-filter: blur(24px);
+    border-top: 1px solid var(--glass-border);
+    display: flex; align-items: center; justify-content: space-around;
+    padding: 0 12px 12px;
+    z-index: 100;
+    box-shadow: 0 -4px 20px rgba(244,114,182,0.08);
+  }
+  .nav-item {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 3px; cursor: pointer; padding: 8px 16px; border-radius: 16px;
+    transition: all 0.2s; flex: 1;
+  }
+  .nav-item.active { background: var(--pink-light); }
+  .nav-item svg { width: 22px; height: 22px; }
+  .nav-item span { font-size: 10px; font-weight: 500; color: var(--gray-400); }
+  .nav-item.active span { color: var(--pink); }
+  .nav-item svg path, .nav-item svg circle, .nav-item svg rect, .nav-item svg polyline {
+    stroke: var(--gray-400);
+  }
+  .nav-item.active svg path, .nav-item.active svg circle,
+  .nav-item.active svg rect, .nav-item.active svg polyline {
+    stroke: var(--pink);
+  }
+
+  /* ===== FAB ===== */
+  .fab {
+    position: fixed; bottom: calc(var(--nav-h) + 20px); right: 20px;
+    background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+    color: white; border: none; border-radius: 28px;
+    padding: 14px 24px; font-family: 'Poppins', sans-serif;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 4px 20px var(--pink-glow), 0 0 0 0 var(--pink-glow);
+    animation: fabPulse 3s infinite;
+    display: flex; align-items: center; gap: 8px;
+    z-index: 50; transition: transform 0.15s;
+  }
+  .fab:active { transform: scale(0.96); }
+  @keyframes fabPulse {
+    0%,100% { box-shadow: 0 4px 20px var(--pink-glow), 0 0 0 0 var(--pink-glow); }
+    50% { box-shadow: 0 4px 20px var(--pink-glow), 0 0 0 8px rgba(244,114,182,0); }
+  }
+
+  /* ===== CARDS ===== */
+  .card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* ===== INPUTS ===== */
+  .input-group { margin-bottom: 16px; }
+  .input-group label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: var(--gray-600); margin-bottom: 6px; text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .input-field {
+    width: 100%; padding: 13px 16px; border-radius: var(--radius-sm);
+    border: 1.5px solid var(--gray-200); background: white;
+    font-family: 'Poppins', sans-serif; font-size: 14px;
+    color: var(--gray-800); outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+  }
+  .input-field:focus {
+    border-color: var(--pink);
+    box-shadow: 0 0 0 3px rgba(244,114,182,0.12);
+  }
+  select.input-field { cursor: pointer; }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    width: 100%; padding: 15px; border: none; border-radius: var(--radius);
+    font-family: 'Poppins', sans-serif; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; letter-spacing: 0.2px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #f472b6, #ec4899);
+    color: white;
+    box-shadow: 0 4px 16px var(--pink-glow);
+  }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-secondary {
+    background: var(--gray-100);
+    color: var(--gray-600);
+  }
+  .btn-google {
+    background: white; color: var(--gray-800);
+    border: 1.5px solid var(--gray-200);
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    font-size: 15px;
+  }
+  .btn-google:active { transform: scale(0.98); }
+
+  /* ===== STATUS BADGES ===== */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  }
+  .badge-aberto { background: #fef3c7; color: #d97706; }
+  .badge-pago { background: #d1fae5; color: #059669; }
+  .badge-fiado { background: #fee2e2; color: #dc2626; }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(4px); z-index: 200;
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal-sheet {
+    background: white; border-radius: 28px 28px 0 0;
+    padding: 8px 0 32px;
+    width: 100%; max-width: 500px;
+    transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    max-height: 92vh; overflow-y: auto;
+  }
+  .modal-sheet::-webkit-scrollbar { display: none; }
+  .modal-overlay.open .modal-sheet { transform: translateY(0); }
+  .modal-handle {
+    width: 40px; height: 4px; background: var(--gray-200);
+    border-radius: 2px; margin: 8px auto 20px;
+  }
+  .modal-title {
+    font-size: 18px; font-weight: 700; color: var(--gray-800);
+    padding: 0 20px 16px; border-bottom: 1px solid var(--gray-100);
+    margin-bottom: 20px;
+  }
+  .modal-body { padding: 0 20px; }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-80px);
+    background: var(--gray-800); color: white;
+    padding: 12px 20px; border-radius: 20px; font-size: 13px; font-weight: 500;
+    z-index: 999; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: #059669; }
+  .toast.error { background: #dc2626; }
+
+  /* ===== SPINNER ===== */
+  .spinner {
+    width: 32px; height: 32px; border: 3px solid var(--pink-light);
+    border-top-color: var(--pink); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-center {
+    display: flex; align-items: center; justify-content: center;
+    padding: 60px 0;
+  }
+
+  /* ===== EMPTY STATE ===== */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 60px 20px; gap: 12px;
+  }
+  .empty-state .icon { font-size: 48px; }
+  .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--gray-600); }
+  .empty-state p { font-size: 13px; color: var(--gray-400); text-align: center; }
+
+  /* ===== LOGIN SCREEN ===== */
+  #loginScreen {
+    background: linear-gradient(160deg, #fff5f9 0%, #fdf2f8 40%, #f9fafb 100%);
+    align-items: center; justify-content: center;
+  }
+  .login-blob {
+    position: absolute;
+    border-radius: 50%; filter: blur(60px); opacity: 0.5; pointer-events: none;
+  }
+  .blob1 { width: 300px; height: 300px; background: #fce7f3; top: -80px; right: -60px; }
+  .blob2 { width: 200px; height: 200px; background: #fbcfe8; bottom: 100px; left: -60px; }
+  .login-card {
+    width: calc(100% - 40px); max-width: 360px;
+    padding: 40px 28px; position: relative; z-index: 1;
+  }
+  .login-logo {
+    font-size: 36px; text-align: center; margin-bottom: 8px;
+  }
+  .login-app-name {
+    font-size: 28px; font-weight: 700; text-align: center;
+    background: linear-gradient(135deg, #f472b6, #ec4899);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 6px;
+  }
+  .login-tagline {
+    font-size: 13px; color: var(--gray-400); text-align: center; margin-bottom: 40px;
+  }
+  .divider {
+    display: flex; align-items: center; gap: 12px; margin: 20px 0;
+  }
+  .divider-line { flex: 1; height: 1px; background: var(--gray-200); }
+  .divider span { font-size: 12px; color: var(--gray-400); font-weight: 500; }
+
+  /* ===== DASHBOARD ===== */
+  #dashScreen .screen-body { padding: 0; }
+  .dash-header {
+    padding: 20px 20px 16px;
+    background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+    position: relative; overflow: hidden;
+  }
+  .dash-header-bg {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .dash-header-bg::after {
+    content: ''; position: absolute;
+    width: 200px; height: 200px; background: rgba(255,255,255,0.1);
+    border-radius: 50%; top: -60px; right: -40px;
+  }
+  .dash-greeting { font-size: 13px; color: rgba(255,255,255,0.8); font-weight: 400; }
+  .dash-name { font-size: 20px; font-weight: 700; color: white; margin-bottom: 20px; }
+  .dash-avatar-row { display: flex; align-items: center; justify-content: space-between; }
+  .dash-avatar {
+    width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.3);
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+    overflow: hidden; cursor: pointer; border: 2px solid rgba(255,255,255,0.5);
+    transition: transform 0.15s;
+  }
+  .dash-avatar:active { transform: scale(0.95); }
+  .dash-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .dash-date { font-size: 12px; color: rgba(255,255,255,0.8); font-weight: 500; }
+
+  /* Stats row */
+  .stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 12px; padding: 16px 16px 0;
+  }
+  .stat-card {
+    padding: 16px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .stat-icon { font-size: 22px; }
+  .stat-label { font-size: 11px; color: var(--gray-400); font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; }
+  .stat-value { font-size: 20px; font-weight: 700; color: var(--gray-800); }
+  .stat-value.pink { color: var(--pink); }
+  .stat-card.featured { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 12px; }
+  .stat-card.featured .stat-value { font-size: 24px; }
+
+  /* Section */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 20px 12px;
+  }
+  .section-title { font-size: 16px; font-weight: 700; color: var(--gray-800); }
+  .section-link { font-size: 13px; color: var(--pink); font-weight: 500; cursor: pointer; }
+
+  /* Atendimento item */
+  .atendimento-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px; cursor: pointer;
+    border-bottom: 1px solid var(--gray-100);
+    transition: background 0.15s;
+  }
+  .atendimento-item:last-child { border-bottom: none; }
+  .atendimento-item:active { background: var(--gray-50); }
+  .atendimento-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--pink-light), var(--pink-soft));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 600; color: var(--pink);
+    flex-shrink: 0; overflow: hidden;
+  }
+  .atendimento-info { flex: 1; min-width: 0; }
+  .atendimento-name { font-size: 14px; font-weight: 600; color: var(--gray-800); }
+  .atendimento-service { font-size: 12px; color: var(--gray-400); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .atendimento-right { text-align: right; flex-shrink: 0; }
+  .atendimento-valor { font-size: 14px; font-weight: 700; color: var(--gray-800); }
+  .atendimento-time { font-size: 11px; color: var(--gray-400); margin-top: 3px; }
+  .atendimento-list-card { margin: 0 16px; }
+
+  /* Filters */
+  .filters-row {
+    display: flex; gap: 8px; padding: 0 16px 12px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+  .filters-row::-webkit-scrollbar { display: none; }
+  .filter-pill {
+    padding: 7px 16px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; border: 1.5px solid var(--gray-200);
+    background: white; color: var(--gray-600); transition: all 0.2s; flex-shrink: 0;
+  }
+  .filter-pill.active {
+    background: var(--pink); border-color: var(--pink); color: white;
+    box-shadow: 0 2px 12px var(--pink-glow);
+  }
+
+  /* ===== ATENDIMENTOS SCREEN ===== */
+  .search-bar {
+    margin: 12px 16px;
+    position: relative;
+  }
+  .search-bar input {
+    width: 100%; padding: 12px 16px 12px 44px;
+    border-radius: 16px; border: 1.5px solid var(--gray-200);
+    background: white; font-family: 'Poppins', sans-serif;
+    font-size: 13px; color: var(--gray-800); outline: none;
+  }
+  .search-bar input:focus { border-color: var(--pink); }
+  .search-icon {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    font-size: 16px; pointer-events: none;
+  }
+
+  /* ===== PROFILE SCREEN ===== */
+  .profile-hero {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 32px 20px 24px;
+  }
+  .profile-avatar {
+    width: 88px; height: 88px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--pink-light), var(--pink-soft));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; margin-bottom: 12px; overflow: hidden;
+    border: 3px solid white; box-shadow: 0 4px 20px var(--pink-glow);
+  }
+  .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .profile-name { font-size: 20px; font-weight: 700; color: var(--gray-800); }
+  .profile-email { font-size: 13px; color: var(--gray-400); margin-top: 2px; }
+
+  .menu-list { margin: 0 16px; }
+  .menu-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 17px 20px; cursor: pointer;
+    border-bottom: 1px solid var(--gray-100);
+    transition: background 0.15s;
+  }
+  .menu-item:first-child { border-radius: 20px 20px 0 0; }
+  .menu-item:last-child { border-radius: 0 0 20px 20px; border-bottom: none; }
+  .menu-item:active { background: var(--gray-50); }
+  .menu-item-icon {
+    width: 38px; height: 38px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .menu-item-text { flex: 1; }
+  .menu-item-title { font-size: 14px; font-weight: 600; color: var(--gray-800); }
+  .menu-item-sub { font-size: 12px; color: var(--gray-400); }
+  .menu-chevron { font-size: 16px; color: var(--gray-400); }
+  .menu-section-title {
+    font-size: 11px; font-weight: 700; color: var(--gray-400);
+    text-transform: uppercase; letter-spacing: 0.8px;
+    padding: 20px 20px 8px;
+  }
+  .btn-logout {
+    margin: 24px 16px;
+    background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+    color: var(--pink); font-weight: 700;
+  }
+  .btn-logout:active { transform: scale(0.98); }
+
+  /* ===== SETTINGS SCREEN ===== */
+  .settings-form { padding: 16px; }
+
+  /* Option buttons (pago/nao pago/fiado) */
+  .option-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .option-btn {
+    padding: 12px 6px; border-radius: 14px; border: 2px solid var(--gray-200);
+    background: white; font-family: 'Poppins', sans-serif; font-size: 12px;
+    font-weight: 600; color: var(--gray-600); cursor: pointer; text-align: center;
+    transition: all 0.15s;
+  }
+  .option-btn .ob-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .option-btn.selected-pago { border-color: #059669; background: #d1fae5; color: #059669; }
+  .option-btn.selected-fiado { border-color: #dc2626; background: #fee2e2; color: #dc2626; }
+  .option-btn.selected-aberto { border-color: #d97706; background: #fef3c7; color: #d97706; }
+
+  /* Import progress */
+  .import-progress {
+    background: var(--gray-50); border-radius: 14px; padding: 16px; margin-top: 12px;
+  }
+  .import-progress-bar {
+    height: 6px; background: var(--gray-200); border-radius: 3px; overflow: hidden; margin: 8px 0;
+  }
+  .import-progress-fill {
+    height: 100%; background: linear-gradient(90deg, var(--pink), #ec4899);
+    border-radius: 3px; width: 0%; transition: width 0.4s;
+  }
+  .import-status { font-size: 12px; color: var(--gray-600); font-weight: 500; }
+
+  /* Conditional fields */
+  .conditional-field { display: none; }
+  .conditional-field.visible { display: block; }
+
+  /* Detail modal */
+  .detail-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 0; border-bottom: 1px solid var(--gray-100);
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-label { font-size: 12px; color: var(--gray-400); font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; }
+  .detail-value { font-size: 14px; font-weight: 600; color: var(--gray-800); }
+  .detail-value.big { font-size: 20px; color: var(--pink); }
+
+  /* Version */
+  .app-version { text-align: center; font-size: 11px; color: var(--gray-400); padding: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ========== TOAST ========== -->
+<div class="toast" id="toast"></div>
+
+<!-- ========== LOGIN SCREEN ========== -->
+<div class="screen active" id="loginScreen">
+  <div class="login-blob blob1"></div>
+  <div class="login-blob blob2"></div>
+  <div class="card login-card">
+    <div class="login-logo">💅</div>
+    <div class="login-app-name">Glam Agenda</div>
+    <div class="login-tagline">Gestão de atendimentos para salões</div>
+    <div class="divider">
+      <div class="divider-line"></div>
+      <span>Acesse sua conta</span>
+      <div class="divider-line"></div>
+    </div>
+    <button class="btn btn-google" onclick="loginWithGoogle()">
+      <svg width="20" height="20" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Entrar com Google
+    </button>
+    <div class="app-version">v1.0.0</div>
+  </div>
+</div>
+
+<!-- ========== DASHBOARD SCREEN ========== -->
+<div class="screen" id="dashScreen">
+  <div class="screen-body" id="dashBody">
+    <!-- Header -->
+    <div class="dash-header">
+      <div class="dash-header-bg"></div>
+      <div class="dash-avatar-row">
+        <div>
+          <div class="dash-greeting" id="dashGreeting">Olá 👋</div>
+          <div class="dash-name" id="dashName">Carregando...</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="dash-date" id="dashDate"></div>
+          <div class="dash-avatar" onclick="showScreen('profileScreen')" id="dashAvatarBtn">
+            <span id="dashAvatarInitials">?</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="card stat-card">
+        <span class="stat-icon">💰</span>
+        <span class="stat-label">Faturado</span>
+        <span class="stat-value" id="statFaturado">R$ 0</span>
+      </div>
+      <div class="card stat-card">
+        <span class="stat-icon">⏳</span>
+        <span class="stat-label">Pendente</span>
+        <span class="stat-value pink" id="statPendente">R$ 0</span>
+      </div>
+      <div class="card stat-card">
+        <span class="stat-icon">📋</span>
+        <span class="stat-label">Atendimentos</span>
+        <span class="stat-value" id="statCount">0</span>
+      </div>
+      <div class="card stat-card">
+        <span class="stat-icon">🎀</span>
+        <span class="stat-label">Fiado</span>
+        <span class="stat-value" id="statFiado">R$ 0</span>
+      </div>
+    </div>
+
+    <!-- Sync button -->
+    <div style="padding: 12px 16px 0;">
+      <button class="btn btn-secondary" onclick="syncCalendar()" style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;" id="syncBtn">
+        <span>🔄</span> Atualizar Agenda
+      </button>
+    </div>
+
+    <!-- Recentes -->
+    <div class="section-header">
+      <span class="section-title">Hoje</span>
+      <span class="section-link" onclick="showScreen('atendimentosScreen')">Ver todos →</span>
+    </div>
+
+    <div class="card atendimento-list-card" id="dashList">
+      <div class="loading-center"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- FAB -->
+  <button class="fab" onclick="openNewAtendimento()">
+    <span>✨</span> Novo Atendimento
+  </button>
+
+  <!-- Bottom Nav -->
+  <div class="bottom-nav">
+    <div class="nav-item active" onclick="setNav('dash')" id="nav-dash">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9,22 9,12 15,12 15,22"/>
+      </svg>
+      <span>Início</span>
+    </div>
+    <div class="nav-item" onclick="setNav('atend')" id="nav-atend">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      <span>Agenda</span>
+    </div>
+    <div class="nav-item" onclick="setNav('profile')" id="nav-profile">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      <span>Perfil</span>
+    </div>
+  </div>
+</div>
+
+<!-- ========== ATENDIMENTOS SCREEN ========== -->
+<div class="screen" id="atendimentosScreen">
+  <div class="topbar">
+    <div class="topbar-back" onclick="setNav('dash')">←</div>
+    <span class="topbar-title">Atendimentos</span>
+    <div class="topbar-action" onclick="openNewAtendimento()">+</div>
+  </div>
+  <div class="screen-body">
+    <!-- Search -->
+    <div class="search-bar">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Buscar cliente..." oninput="filterAtendimentos()">
+    </div>
+    <!-- Filter pills -->
+    <div class="filters-row">
+      <div class="filter-pill active" onclick="setFilter('todos')" id="f-todos">Todos</div>
+      <div class="filter-pill" onclick="setFilter('aberto')" id="f-aberto">Aberto</div>
+      <div class="filter-pill" onclick="setFilter('pago')" id="f-pago">Pago</div>
+      <div class="filter-pill" onclick="setFilter('fiado')" id="f-fiado">Fiado</div>
+    </div>
+    <!-- Date filters -->
+    <div style="display:flex;gap:8px;padding:0 16px 12px;">
+      <div class="input-group" style="flex:1;margin:0;">
+        <input type="date" class="input-field" id="filterDataIni" style="font-size:12px;padding:9px 12px;" onchange="filterAtendimentos()">
+      </div>
+      <div class="input-group" style="flex:1;margin:0;">
+        <input type="date" class="input-field" id="filterDataFim" style="font-size:12px;padding:9px 12px;" onchange="filterAtendimentos()">
+      </div>
+    </div>
+    <div id="atendimentosList">
+      <div class="loading-center"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item" onclick="setNav('dash')" id="anav-dash">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9,22 9,12 15,12 15,22"/>
+      </svg>
+      <span>Início</span>
+    </div>
+    <div class="nav-item active" onclick="setNav('atend')" id="anav-atend">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      <span>Agenda</span>
+    </div>
+    <div class="nav-item" onclick="setNav('profile')" id="anav-profile">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      <span>Perfil</span>
+    </div>
+  </div>
+</div>
+
+<!-- ========== PROFILE SCREEN ========== -->
+<div class="screen" id="profileScreen">
+  <div class="topbar">
+    <div class="topbar-back" onclick="setNav('dash')">←</div>
+    <span class="topbar-title">Perfil</span>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="screen-body">
+    <div class="profile-hero">
+      <div class="profile-avatar" id="profileAvatar">
+        <span id="profileAvatarInitials">?</span>
+      </div>
+      <div class="profile-name" id="profileName">—</div>
+      <div class="profile-email" id="profileEmail">—</div>
+    </div>
+
+    <div class="menu-section-title">Conta</div>
+    <div class="card menu-list">
+      <div class="menu-item" onclick="showScreen('settingsScreen')">
+        <div class="menu-item-icon" style="background:#fce7f3;">⚙️</div>
+        <div class="menu-item-text">
+          <div class="menu-item-title">Configurações</div>
+          <div class="menu-item-sub">Firebase & Google Calendar</div>
+        </div>
+        <span class="menu-chevron">›</span>
+      </div>
+      <div class="menu-item" onclick="syncCalendar()">
+        <div class="menu-item-icon" style="background:#e0f2fe;">🔄</div>
+        <div class="menu-item-text">
+          <div class="menu-item-title">Sincronizar Agenda</div>
+          <div class="menu-item-sub">Importar do Google Calendar</div>
+        </div>
+        <span class="menu-chevron">›</span>
+      </div>
+    </div>
+
+    <button class="btn btn-logout" onclick="logout()">Sair da conta</button>
+    <div class="app-version">Glam Agenda v1.0.0</div>
+  </div>
+</div>
+
+<!-- ========== SETTINGS SCREEN ========== -->
+<div class="screen" id="settingsScreen">
+  <div class="topbar">
+    <div class="topbar-back" onclick="showScreen('profileScreen')">←</div>
+    <span class="topbar-title">Configurações</span>
+    <div style="width:36px;"></div>
+  </div>
+  <div class="screen-body">
+    <div class="settings-form">
+      <div style="background:var(--pink-light);border-radius:14px;padding:14px;margin-bottom:20px;">
+        <p style="font-size:13px;color:var(--pink);font-weight:600;">ℹ️ As configurações do Firebase e Google Client ID são pré-definidas no código. Use este painel para ajustes avançados.</p>
+      </div>
+      <div class="menu-section-title" style="padding:0 0 8px;">Importação do Google Calendar</div>
+      <div class="card" style="padding:16px;">
+        <div class="input-group">
+          <label>Importar a partir de</label>
+          <input type="month" class="input-field" id="importFromMonth">
+        </div>
+        <button class="btn btn-primary" onclick="triggerImport()">Importar Eventos</button>
+        <div id="importProgress" class="import-progress" style="display:none;">
+          <div class="import-status" id="importStatus">Iniciando...</div>
+          <div class="import-progress-bar"><div class="import-progress-fill" id="importFill"></div></div>
+          <div style="font-size:11px;color:var(--gray-400);" id="importDetail"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL: NOVO ATENDIMENTO ========== -->
+<div class="modal-overlay" id="modalNovoAtend" onclick="closeModalIfBg(event,'modalNovoAtend')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✨ Novo Atendimento</div>
+    <div class="modal-body">
+      <div class="input-group">
+        <label>Nome da Cliente</label>
+        <input type="text" class="input-field" id="naCliente" placeholder="Ex: Ana Silva">
+      </div>
+      <div class="input-group">
+        <label>Serviço</label>
+        <input type="text" class="input-field" id="naServico" placeholder="Ex: Escova + Hidratação">
+      </div>
+      <div class="input-group">
+        <label>Valor (R$)</label>
+        <input type="number" class="input-field" id="naValor" placeholder="0.00" step="0.01">
+      </div>
+      <div class="input-group">
+        <label>Data e Hora</label>
+        <input type="datetime-local" class="input-field" id="naDataHora">
+      </div>
+      <div class="input-group">
+        <label>Status</label>
+        <div class="option-btns">
+          <button class="option-btn selected-aberto" onclick="selectStatus('aberto')" id="opt-aberto">
+            <span class="ob-icon">⏳</span>Aberto
+          </button>
+          <button class="option-btn" onclick="selectStatus('pago')" id="opt-pago">
+            <span class="ob-icon">✅</span>Pago
+          </button>
+          <button class="option-btn" onclick="selectStatus('fiado')" id="opt-fiado">
+            <span class="ob-icon">📋</span>Fiado
+          </button>
+        </div>
+      </div>
+      <div class="conditional-field" id="cfValorPago">
+        <div class="input-group">
+          <label>Valor Pago (R$)</label>
+          <input type="number" class="input-field" id="naValorPago" placeholder="0.00" step="0.01">
+        </div>
+      </div>
+      <div class="conditional-field" id="cfDataFiado">
+        <div class="input-group">
+          <label>Vencimento do Fiado</label>
+          <input type="date" class="input-field" id="naDataFiado">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="salvarAtendimento()" style="margin-bottom:8px;">Salvar Atendimento</button>
+      <button class="btn btn-secondary" onclick="closeModal('modalNovoAtend')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL: DETALHE ATENDIMENTO ========== -->
+<div class="modal-overlay" id="modalDetalhe" onclick="closeModalIfBg(event,'modalDetalhe')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modalDetalheTitle">Atendimento</div>
+    <div class="modal-body">
+      <div id="modalDetalheContent"></div>
+      <div style="margin-top:16px;">
+        <div style="font-size:13px;font-weight:700;color:var(--gray-600);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Atualizar Status</div>
+        <div class="option-btns">
+          <button class="option-btn selected-aberto" onclick="updateStatus('aberto')" id="dopt-aberto">
+            <span class="ob-icon">⏳</span>Aberto
+          </button>
+          <button class="option-btn" onclick="updateStatus('pago')" id="dopt-pago">
+            <span class="ob-icon">✅</span>Pago
+          </button>
+          <button class="option-btn" onclick="updateStatus('fiado')" id="dopt-fiado">
+            <span class="ob-icon">📋</span>Fiado
+          </button>
+        </div>
+      </div>
+      <div class="conditional-field" id="dCfValorPago">
+        <div class="input-group" style="margin-top:12px;">
+          <label>Valor Pago (R$)</label>
+          <input type="number" class="input-field" id="dValorPago" placeholder="0.00" step="0.01">
+        </div>
+      </div>
+      <div class="conditional-field" id="dCfDataFiado">
+        <div class="input-group" style="margin-top:12px;">
+          <label>Vencimento do Fiado</label>
+          <input type="date" class="input-field" id="dDataFiado">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="confirmarUpdateStatus()" style="margin-top:8px;margin-bottom:8px;">Confirmar</button>
+      <button class="btn btn-secondary" onclick="closeModal('modalDetalhe')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL: IMPORTAÇÃO INICIAL ========== -->
+<div class="modal-overlay" id="modalImportFirst">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📅 Importar Agenda</div>
+    <div class="modal-body">
+      <p style="font-size:14px;color:var(--gray-600);margin-bottom:20px;">
+        A partir de qual mês você deseja importar os eventos do Google Calendar?
+      </p>
+      <div class="input-group">
+        <label>Mês e Ano de início</label>
+        <input type="month" class="input-field" id="firstImportMonth">
+      </div>
+      <div id="firstImportProgress" class="import-progress" style="display:none;">
+        <div class="import-status" id="firstImportStatus">Iniciando...</div>
+        <div class="import-progress-bar"><div class="import-progress-fill" id="firstImportFill"></div></div>
+        <div style="font-size:11px;color:var(--gray-400);" id="firstImportDetail"></div>
+      </div>
+      <button class="btn btn-primary" onclick="doFirstImport()" style="margin-bottom:8px;" id="btnFirstImport">Importar Agora</button>
+      <button class="btn btn-secondary" onclick="closeModal('modalImportFirst')">Pular por enquanto</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== FIREBASE & GOOGLE APIS ========== -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+  authDomain: "glam-studio-8b65c.firebaseapp.com",
+  projectId: "glam-studio-8b65c",
+  storageBucket: "glam-studio-8b65c.firebasestorage.app",
+  messagingSenderId: "154294556895",
+  appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+};
+const GOOGLE_CLIENT_ID = "1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com";
+const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+
+// ============================================================
+// STATE
+// ============================================================
+let currentUser = null;
+let db = null;
+let allAtendimentos = [];
+let currentFilter = 'todos';
+let currentAtendId = null;
+let currentAtendStatus = 'aberto';
+let detailAtendStatus = 'aberto';
+let gcalAccessToken = null;
+let unsubscribeAtend = null;
+
+// ============================================================
+// INIT FIREBASE
+// ============================================================
+firebase.initializeApp(FIREBASE_CONFIG);
+db = firebase.firestore();
+const auth = firebase.auth();
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    currentUser = user;
+    onUserLoggedIn(user);
+  } else {
+    currentUser = null;
+    showScreen('loginScreen');
+  }
+});
+
+// ============================================================
+// AUTH
+// ============================================================
+function loginWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.addScope(GCAL_SCOPE);
+  provider.setCustomParameters({ prompt: 'consent', access_type: 'offline' });
+  auth.signInWithPopup(provider).then(result => {
+    // Store access token for Calendar
+    const credential = result.credential;
+    if (credential && credential.accessToken) {
+      gcalAccessToken = credential.accessToken;
+      localStorage.setItem('gcalToken', gcalAccessToken);
+    }
+  }).catch(err => {
+    showToast('Erro ao entrar: ' + err.message, 'error');
+  });
+}
+
+function logout() {
+  if (!confirm('Deseja sair da sua conta?')) return;
+  if (unsubscribeAtend) unsubscribeAtend();
+  auth.signOut();
+}
+
+// ============================================================
+// POST-LOGIN SETUP
+// ============================================================
+function onUserLoggedIn(user) {
+  // Restore token if available
+  if (!gcalAccessToken) gcalAccessToken = localStorage.getItem('gcalToken');
+
+  updateProfileUI(user);
+  showScreen('dashScreen');
+  setNav('dash');
+  updateDashHeader(user);
+
+  // Save user to Firestore
+  db.collection('users').doc(user.uid).set({
+    name: user.displayName,
+    email: user.email,
+    photoURL: user.photoURL,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  // Listen to atendimentos realtime
+  startAtendimentosListener(user.uid);
+
+  // Check if first import needed
+  checkFirstImport(user.uid);
+}
+
+function checkFirstImport(uid) {
+  db.collection('users').doc(uid).get().then(doc => {
+    if (!doc.exists || !doc.data().hasImported) {
+      // Set default month (current)
+      const now = new Date();
+      document.getElementById('firstImportMonth').value =
+        `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      openModal('modalImportFirst');
+    }
+  });
+}
+
+// ============================================================
+// REALTIME LISTENER
+// ============================================================
+function startAtendimentosListener(uid) {
+  if (unsubscribeAtend) unsubscribeAtend();
+  unsubscribeAtend = db.collection('atendimentos')
+    .where('uid', '==', uid)
+    .orderBy('dataHora', 'desc')
+    .onSnapshot(snap => {
+      allAtendimentos = [];
+      snap.forEach(doc => {
+        allAtendimentos.push({ id: doc.id, ...doc.data() });
+      });
+      renderDashList();
+      filterAtendimentos();
+      updateStats();
+    }, err => {
+      // Firestore rules may block — try without ordering
+      console.error('Listener error:', err);
+    });
+}
+
+// ============================================================
+// STATS
+// ============================================================
+function updateStats() {
+  let faturado = 0, pendente = 0, fiado = 0;
+  allAtendimentos.forEach(a => {
+    const v = parseFloat(a.valor) || 0;
+    if (a.status === 'pago') faturado += (parseFloat(a.valorPago) || v);
+    else if (a.status === 'aberto') pendente += v;
+    else if (a.status === 'fiado') fiado += v;
+  });
+  document.getElementById('statFaturado').textContent = formatMoney(faturado);
+  document.getElementById('statPendente').textContent = formatMoney(pendente);
+  document.getElementById('statFiado').textContent = formatMoney(fiado);
+  document.getElementById('statCount').textContent = allAtendimentos.length;
+}
+
+// ============================================================
+// RENDER LISTS
+// ============================================================
+function renderDashList() {
+  const container = document.getElementById('dashList');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toDateString();
+
+  const todayItems = allAtendimentos.filter(a => {
+    if (!a.dataHora) return false;
+    const d = a.dataHora.toDate ? a.dataHora.toDate() : new Date(a.dataHora);
+    return d.toDateString() === todayStr;
+  });
+
+  if (todayItems.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">📅</div><h3>Nenhum atendimento hoje</h3><p>Sincronize a agenda ou cadastre manualmente</p></div>`;
+    return;
+  }
+  container.innerHTML = todayItems.slice(0,5).map(renderAtendItem).join('');
+}
+
+function renderAtendItem(a) {
+  const dataHora = a.dataHora ? (a.dataHora.toDate ? a.dataHora.toDate() : new Date(a.dataHora)) : null;
+  const timeStr = dataHora ? dataHora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '--';
+  const dateStr = dataHora ? dataHora.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '--';
+  const initials = (a.cliente || '?').slice(0,2).toUpperCase();
+  const badgeClass = `badge-${a.status || 'aberto'}`;
+  const statusLabel = {aberto:'Aberto',pago:'Pago',fiado:'Fiado'}[a.status] || a.status;
+
+  return `<div class="atendimento-item" onclick="openDetalhe('${a.id}')">
+    <div class="atendimento-avatar">${initials}</div>
+    <div class="atendimento-info">
+      <div class="atendimento-name">${esc(a.cliente || '—')}</div>
+      <div class="atendimento-service">${esc(a.servico || '—')}</div>
+    </div>
+    <div class="atendimento-right">
+      <div class="atendimento-valor">${formatMoney(a.valor)}</div>
+      <div class="atendimento-time">${dateStr} ${timeStr}</div>
+      <div class="badge ${badgeClass}" style="margin-top:4px;">${statusLabel}</div>
+    </div>
+  </div>`;
+}
+
+function filterAtendimentos() {
+  const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const ini = document.getElementById('filterDataIni')?.value;
+  const fim = document.getElementById('filterDataFim')?.value;
+
+  let filtered = allAtendimentos.filter(a => {
+    if (currentFilter !== 'todos' && a.status !== currentFilter) return false;
+    if (q && !((a.cliente||'').toLowerCase().includes(q) || (a.servico||'').toLowerCase().includes(q))) return false;
+    if (ini || fim) {
+      const d = a.dataHora ? (a.dataHora.toDate ? a.dataHora.toDate() : new Date(a.dataHora)) : null;
+      if (!d) return false;
+      const ds = d.toISOString().slice(0,10);
+      if (ini && ds < ini) return false;
+      if (fim && ds > fim) return false;
+    }
+    return true;
+  });
+
+  const container = document.getElementById('atendimentosList');
+  if (!container) return;
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><h3>Nenhum resultado</h3><p>Tente outros filtros</p></div>`;
+    return;
+  }
+  container.innerHTML = `<div class="card atendimento-list-card">${filtered.map(renderAtendItem).join('')}</div>`;
+}
+
+// ============================================================
+// FILTERS & NAV
+// ============================================================
+function setFilter(f) {
+  currentFilter = f;
+  ['todos','aberto','pago','fiado'].forEach(x => {
+    document.getElementById('f-'+x)?.classList.toggle('active', x===f);
+  });
+  filterAtendimentos();
+}
+
+function setNav(tab) {
+  const screens = {dash:'dashScreen', atend:'atendimentosScreen', profile:'profileScreen'};
+  showScreen(screens[tab] || 'dashScreen');
+
+  // Update all nav bars
+  ['dash','atend'].forEach(prefix => {
+    ['dash','atend','profile'].forEach(t => {
+      document.getElementById(prefix==='dash'?`nav-${t}`:`anav-${t}`)?.classList.toggle('active', t===tab);
+    });
+  });
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id)?.classList.add('active');
+}
+
+// ============================================================
+// DASHBOARD HEADER
+// ============================================================
+function updateDashHeader(user) {
+  const h = new Date().getHours();
+  const gr = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  document.getElementById('dashGreeting').textContent = `${gr} 👋`;
+  const firstName = (user.displayName || 'você').split(' ')[0];
+  document.getElementById('dashName').textContent = firstName;
+  document.getElementById('dashDate').textContent = new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'});
+
+  // Avatar
+  if (user.photoURL) {
+    document.getElementById('dashAvatarBtn').innerHTML = `<img src="${user.photoURL}" alt="">`;
+  } else {
+    document.getElementById('dashAvatarInitials').textContent = firstName.slice(0,2).toUpperCase();
+  }
+}
+
+function updateProfileUI(user) {
+  document.getElementById('profileName').textContent = user.displayName || '—';
+  document.getElementById('profileEmail').textContent = user.email || '—';
+  const initials = (user.displayName || '?').slice(0,2).toUpperCase();
+  if (user.photoURL) {
+    document.getElementById('profileAvatar').innerHTML = `<img src="${user.photoURL}" alt="">`;
+  } else {
+    document.getElementById('profileAvatarInitials').textContent = initials;
+  }
+}
+
+// ============================================================
+// NOVO ATENDIMENTO MODAL
+// ============================================================
+function openNewAtendimento() {
+  // Reset
+  ['naCliente','naServico','naValor','naValorPago','naDataFiado'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // Set default datetime to now
+  const now = new Date();
+  now.setMinutes(Math.round(now.getMinutes()/15)*15);
+  document.getElementById('naDataHora').value = now.toISOString().slice(0,16);
+  selectStatus('aberto');
+  openModal('modalNovoAtend');
+}
+
+function selectStatus(s) {
+  currentAtendStatus = s;
+  ['aberto','pago','fiado'].forEach(x => {
+    const btn = document.getElementById('opt-'+x);
+    if (btn) {
+      btn.className = 'option-btn';
+      if (x === s) btn.classList.add(`selected-${x}`);
+    }
+  });
+  document.getElementById('cfValorPago').classList.toggle('visible', s==='pago');
+  document.getElementById('cfDataFiado').classList.toggle('visible', s==='fiado');
+}
+
+function salvarAtendimento() {
+  const cliente = document.getElementById('naCliente').value.trim();
+  const servico = document.getElementById('naServico').value.trim();
+  const valor = parseFloat(document.getElementById('naValor').value) || 0;
+  const dataHora = document.getElementById('naDataHora').value;
+
+  if (!cliente) { showToast('Informe o nome da cliente', 'error'); return; }
+  if (!dataHora) { showToast('Informe data e hora', 'error'); return; }
+
+  const data = {
+    uid: currentUser.uid,
+    cliente, servico, valor,
+    dataHora: new Date(dataHora),
+    status: currentAtendStatus,
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  if (currentAtendStatus === 'pago') {
+    data.valorPago = parseFloat(document.getElementById('naValorPago').value) || valor;
+  }
+  if (currentAtendStatus === 'fiado') {
+    const df = document.getElementById('naDataFiado').value;
+    if (df) data.dataFiado = new Date(df + 'T00:00:00');
+  }
+
+  db.collection('atendimentos').add(data).then(() => {
+    closeModal('modalNovoAtend');
+    showToast('Atendimento salvo! ✨', 'success');
+  }).catch(err => showToast('Erro ao salvar: ' + err.message, 'error'));
+}
+
+// ============================================================
+// DETALHE / UPDATE STATUS
+// ============================================================
+function openDetalhe(id) {
+  const a = allAtendimentos.find(x => x.id === id);
+  if (!a) return;
+  currentAtendId = id;
+  detailAtendStatus = a.status || 'aberto';
+
+  document.getElementById('modalDetalheTitle').textContent = a.cliente || 'Atendimento';
+
+  const dataHora = a.dataHora ? (a.dataHora.toDate ? a.dataHora.toDate() : new Date(a.dataHora)) : null;
+  const dateStr = dataHora ? dataHora.toLocaleString('pt-BR') : '—';
+
+  document.getElementById('modalDetalheContent').innerHTML = `
+    <div class="detail-row"><span class="detail-label">Serviço</span><span class="detail-value">${esc(a.servico||'—')}</span></div>
+    <div class="detail-row"><span class="detail-label">Valor</span><span class="detail-value big">${formatMoney(a.valor)}</span></div>
+    <div class="detail-row"><span class="detail-label">Data/Hora</span><span class="detail-value">${dateStr}</span></div>
+    <div class="detail-row"><span class="detail-label">Status atual</span><span class="badge badge-${a.status||'aberto'}">${{aberto:'Aberto',pago:'Pago',fiado:'Fiado'}[a.status]||a.status}</span></div>
+    ${a.valorPago ? `<div class="detail-row"><span class="detail-label">Valor pago</span><span class="detail-value">${formatMoney(a.valorPago)}</span></div>` : ''}
+    ${a.dataFiado ? `<div class="detail-row"><span class="detail-label">Venc. fiado</span><span class="detail-value">${(a.dataFiado.toDate ? a.dataFiado.toDate() : new Date(a.dataFiado)).toLocaleDateString('pt-BR')}</span></div>` : ''}
+  `;
+
+  // Set option buttons
+  updateStatus(detailAtendStatus, false);
+  openModal('modalDetalhe');
+}
+
+function updateStatus(s, save=false) {
+  detailAtendStatus = s;
+  ['aberto','pago','fiado'].forEach(x => {
+    const btn = document.getElementById('dopt-'+x);
+    if (btn) {
+      btn.className = 'option-btn';
+      if (x === s) btn.classList.add(`selected-${x}`);
+    }
+  });
+  document.getElementById('dCfValorPago').classList.toggle('visible', s==='pago');
+  document.getElementById('dCfDataFiado').classList.toggle('visible', s==='fiado');
+}
+
+function confirmarUpdateStatus() {
+  if (!currentAtendId) return;
+  const a = allAtendimentos.find(x => x.id === currentAtendId);
+  const update = { status: detailAtendStatus };
+
+  if (detailAtendStatus === 'pago') {
+    const vp = parseFloat(document.getElementById('dValorPago').value);
+    update.valorPago = vp || (a ? parseFloat(a.valor)||0 : 0);
+  }
+  if (detailAtendStatus === 'fiado') {
+    const df = document.getElementById('dDataFiado').value;
+    if (df) update.dataFiado = new Date(df + 'T00:00:00');
+  }
+
+  db.collection('atendimentos').doc(currentAtendId).update(update).then(() => {
+    closeModal('modalDetalhe');
+    showToast('Status atualizado! ✅', 'success');
+  }).catch(err => showToast('Erro: ' + err.message, 'error'));
+}
+
+// ============================================================
+// GOOGLE CALENDAR SYNC
+// ============================================================
+function syncCalendar() {
+  if (!gcalAccessToken) {
+    // Re-authenticate to get token
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope(GCAL_SCOPE);
+    auth.signInWithPopup(provider).then(result => {
+      gcalAccessToken = result.credential.accessToken;
+      localStorage.setItem('gcalToken', gcalAccessToken);
+      doSync(gcalAccessToken);
+    }).catch(e => showToast('Precisa dar permissão ao Calendar', 'error'));
+    return;
+  }
+  doSync(gcalAccessToken);
+}
+
+async function doSync(token, fromDate) {
+  const btn = document.getElementById('syncBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;margin:0 auto;"></div>'; }
+
+  try {
+    const minTime = fromDate ? new Date(fromDate).toISOString() : new Date(Date.now() - 90*24*3600*1000).toISOString();
+    let pageToken = '';
+    let imported = 0;
+    let page = 0;
+    const maxPages = 20;
+
+    do {
+      const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(minTime)}&maxResults=250&singleEvents=true&orderBy=startTime${pageToken ? '&pageToken='+pageToken : ''}`;
+      const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+
+      if (resp.status === 401) {
+        gcalAccessToken = null; localStorage.removeItem('gcalToken');
+        showToast('Token expirado, entre novamente', 'error');
+        break;
+      }
+
+      const data = await resp.json();
+      const events = data.items || [];
+
+      for (const ev of events) {
+        await processCalendarEvent(ev);
+        imported++;
+      }
+
+      pageToken = data.nextPageToken || '';
+      page++;
+    } while (pageToken && page < maxPages);
+
+    showToast(`${imported} eventos sincronizados! 🎉`, 'success');
+  } catch(e) {
+    showToast('Erro na sincronização', 'error');
+    console.error(e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span>🔄</span> Atualizar Agenda'; }
+  }
+}
+
+async function processCalendarEvent(ev) {
+  if (!currentUser || !ev.id) return;
+
+  // Check duplicate
+  const existing = await db.collection('atendimentos')
+    .where('uid', '==', currentUser.uid)
+    .where('eventId', '==', ev.id).get();
+  if (!existing.empty) return;
+
+  // Parse event
+  const titulo = ev.summary || '';
+  const desc = ev.description || '';
+  const lines = desc.split('\n').map(l => l.trim()).filter(Boolean);
+  const servico = lines[0] || '';
+  const valorStr = lines[1] || '0';
+  const valor = parseFloat(valorStr.replace(/[^\d.,]/g,'').replace(',','.')) || 0;
+
+  const startRaw = ev.start?.dateTime || ev.start?.date;
+  if (!startRaw) return;
+  const dataHora = new Date(startRaw);
+  if (isNaN(dataHora.getTime())) return;
+
+  await db.collection('atendimentos').add({
+    uid: currentUser.uid,
+    cliente: titulo,
+    servico,
+    valor,
+    dataHora,
+    status: 'aberto',
+    eventId: ev.id,
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+// ============================================================
+// FIRST IMPORT
+// ============================================================
+async function doFirstImport() {
+  const month = document.getElementById('firstImportMonth').value;
+  if (!month) { showToast('Selecione o mês', 'error'); return; }
+
+  const btn = document.getElementById('btnFirstImport');
+  btn.disabled = true;
+  btn.textContent = 'Importando...';
+  document.getElementById('firstImportProgress').style.display = 'block';
+
+  if (!gcalAccessToken) {
+    showToast('Faça login novamente para autorizar o Calendar', 'error');
+    btn.disabled = false; btn.textContent = 'Importar Agora';
+    return;
+  }
+
+  const fromDate = month + '-01T00:00:00Z';
+  let pageToken = '';
+  let imported = 0, page = 0;
+
+  try {
+    do {
+      const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(fromDate)}&maxResults=250&singleEvents=true&orderBy=startTime${pageToken ? '&pageToken='+pageToken : ''}`;
+      const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + gcalAccessToken } });
+      if (resp.status === 401) { showToast('Autorização expirada', 'error'); break; }
+      const data = await resp.json();
+      const events = data.items || [];
+
+      for (let i = 0; i < events.length; i++) {
+        await processCalendarEvent(events[i]);
+        imported++;
+        const pct = Math.round(((i+1)/events.length)*100);
+        document.getElementById('firstImportFill').style.width = pct + '%';
+        document.getElementById('firstImportStatus').textContent = `Importando... ${imported} eventos`;
+        document.getElementById('firstImportDetail').textContent = events[i].summary || '';
+      }
+      pageToken = data.nextPageToken || '';
+      page++;
+    } while (pageToken && page < 20);
+
+    // Mark as imported
+    await db.collection('users').doc(currentUser.uid).update({ hasImported: true });
+    document.getElementById('firstImportStatus').textContent = `✅ ${imported} eventos importados!`;
+    document.getElementById('firstImportFill').style.width = '100%';
+    setTimeout(() => closeModal('modalImportFirst'), 2000);
+  } catch(e) {
+    showToast('Erro na importação', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Importar Agora';
+  }
+}
+
+async function triggerImport() {
+  const month = document.getElementById('importFromMonth').value;
+  if (!month) { showToast('Selecione o mês', 'error'); return; }
+
+  document.getElementById('importProgress').style.display = 'block';
+  document.getElementById('importFill').style.width = '10%';
+  document.getElementById('importStatus').textContent = 'Conectando...';
+
+  await doSync(gcalAccessToken, month + '-01T00:00:00Z');
+  document.getElementById('importFill').style.width = '100%';
+  document.getElementById('importStatus').textContent = 'Concluído!';
+}
+
+// ============================================================
+// MODALS
+// ============================================================
+function openModal(id) {
+  document.getElementById(id)?.classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id)?.classList.remove('open');
+}
+function closeModalIfBg(e, id) {
+  if (e.target === document.getElementById(id)) closeModal(id);
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (type ? ' '+type : '');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function formatMoney(v) {
+  const n = parseFloat(v) || 0;
+  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Set default month for settings
+const nm = new Date();
+document.getElementById('importFromMonth').value = `${nm.getFullYear()}-${String(nm.getMonth()+1).padStart(2,'0')}`;
+</script>
+</body>
+</html>
