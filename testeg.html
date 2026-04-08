@@ -1,0 +1,763 @@
+html
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glam Studio Manager</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #ff85a2;
+            --primary-glow: rgba(255, 133, 162, 0.4);
+            --bg: #f8f9fa;
+            --white: #ffffff;
+            --text-dark: #2d3436;
+            --text-light: #636e72;
+            --glass: rgba(255, 255, 255, 0.7);
+            --success: #00b894;
+            --warning: #fdcb6e;
+            --danger: #ff7675;
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            color: var(--text-dark);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* --- Components --- */
+        .glass {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-glow {
+            background: linear-gradient(45deg, var(--primary), #ffacc1);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px var(--primary-glow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-glow:active {
+            transform: scale(0.95);
+        }
+
+        /* --- Screens --- */
+        .screen {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- Login Screen --- */
+        #login-screen {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .logo-container {
+            margin-bottom: 40px;
+        }
+
+        .logo-circle {
+            width: 80px;
+            height: 80px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .logo-circle i {
+            color: white;
+            font-size: 32px;
+        }
+
+        /* --- Dashboard --- */
+        .header {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .profile-img {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: #ddd;
+            object-fit: cover;
+            border: 2px solid white;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+        }
+
+        .dashboard-container {
+            padding: 0 20px 100px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card-full {
+            grid-column: span 2;
+        }
+
+        .stat-card {
+            padding: 20px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .stat-value.income { color: var(--success); }
+        .stat-value.pending { color: var(--warning); }
+        .stat-value.unpaid { color: var(--danger); }
+
+        /* --- List Atendimentos --- */
+        .section-title {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .attendance-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .attendance-card {
+            padding: 15px;
+            border-radius: var(--radius-md);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: 0.2s;
+        }
+
+        .info-group h4 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .info-group p {
+            font-size: 0.85rem;
+            color: var(--text-light);
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-aberto { background: #e3f2fd; color: #1976d2; }
+        .badge-pago { background: #e8f5e9; color: #2e7d32; }
+        .badge-fiado { background: #fff3e0; color: #ef6c00; }
+
+        /* --- FAB --- */
+        .fab {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, var(--primary), #ffacc1);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 8px 25px var(--primary-glow);
+            cursor: pointer;
+            z-index: 1000;
+        }
+
+        /* --- Modal --- */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.4);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        input, select {
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+            outline: none;
+        }
+
+        /* --- Sync Bar --- */
+        #sync-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--primary);
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-size: 0.8rem;
+            display: none;
+            z-index: 3000;
+        }
+
+        /* Profile Screen */
+        .profile-header {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .profile-img-large {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin-bottom: 15px;
+        }
+
+        .config-list {
+            list-style: none;
+            padding: 20px;
+        }
+
+        .config-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            cursor: pointer;
+        }
+
+        .config-item i { color: var(--primary); }
+
+        /* Loader */
+        .loader {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #FFF;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: none;
+            animation: rotation 1s linear infinite;
+        }
+
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sync-overlay">Sincronizando Agenda...</div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen active">
+        <div class="logo-container">
+            <div class="logo-circle">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </div>
+            <h1 style="color: var(--primary); font-weight: 600;">Glam Studio</h1>
+            <p style="color: var(--text-light);">Gerencie seu salão com elegância</p>
+        </div>
+        <button id="google-login-btn" class="btn-glow">
+            <i class="fa-brands fa-google"></i>
+            Entrar com Google
+        </button>
+    </div>
+
+    <!-- Dashboard Screen -->
+    <div id="dashboard-screen" class="screen">
+        <header class="header">
+            <div>
+                <p style="font-size: 0.8rem; color: var(--text-light);">Olá,</p>
+                <h2 id="user-display-name">Glamorous</h2>
+            </div>
+            <img id="user-profile-pic" class="profile-img" src="" alt="Profile" onclick="showScreen('profile-screen')">
+        </header>
+
+        <main class="dashboard-container">
+            <div class="stats-grid">
+                <div class="stat-card glass stat-card-full">
+                    <span class="stat-label">Ticket Médio</span>
+                    <span class="stat-value" id="stat-ticket-medio">R$ 0,00</span>
+                </div>
+                <div class="stat-card glass">
+                    <span class="stat-label">Faturamento</span>
+                    <span class="stat-value income" id="stat-faturamento">R$ 0,00</span>
+                </div>
+                <div class="stat-card glass">
+                    <span class="stat-label">Pendentes</span>
+                    <span class="stat-value pending" id="stat-pendente">R$ 0,00</span>
+                </div>
+                <div class="stat-card glass">
+                    <span class="stat-label">Fiados</span>
+                    <span class="stat-value unpaid" id="stat-fiado">R$ 0,00</span>
+                </div>
+                <div class="stat-card glass">
+                    <span class="stat-label">Atendimentos</span>
+                    <span class="stat-value" id="stat-count">0</span>
+                </div>
+            </div>
+
+            <div class="section-title">
+                <h3>Atendimentos</h3>
+                <button onclick="syncCalendar()" style="background:none; border:none; color: var(--primary); font-size: 0.9rem;">
+                    <i class="fa-solid fa-arrows-rotate"></i> Sincronizar
+                </button>
+            </div>
+
+            <div id="attendance-list" class="attendance-list">
+                <!-- Items dynamic -->
+                <p style="text-align: center; color: var(--text-light);">Carregando atendimentos...</p>
+            </div>
+        </main>
+
+        <div class="fab" onclick="openNewModal()">
+            <i class="fa-solid fa-plus"></i>
+        </div>
+    </div>
+
+    <!-- Profile Screen -->
+    <div id="profile-screen" class="screen">
+        <header class="header">
+            <button onclick="showScreen('dashboard-screen')" style="background:none; border:none; font-size: 1.2rem;">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <h3>Meu Perfil</h3>
+            <div style="width: 30px;"></div>
+        </header>
+        
+        <div class="profile-header">
+            <img id="profile-img-lg" class="profile-img-large" src="" alt="Profile">
+            <h2 id="profile-name">Nome</h2>
+            <p id="profile-email" style="color: var(--text-light); font-size: 0.9rem;">email@gmail.com</p>
+        </div>
+
+        <ul class="config-list">
+            <li class="config-item"><i class="fa-solid fa-gear"></i> Configurações</li>
+            <li class="config-item"><i class="fa-solid fa-calendar-check"></i> Histórico</li>
+            <li class="config-item" onclick="logout()" style="color: var(--danger);"><i class="fa-solid fa-right-from-bracket"></i> Sair</li>
+        </ul>
+    </div>
+
+    <!-- Modal Status Update -->
+    <div id="status-modal" class="modal">
+        <div class="modal-content glass">
+            <h3>Finalizar Atendimento</h3>
+            <p id="modal-client-name" style="font-weight: 600;"></p>
+            
+            <div class="form-group">
+                <label>Status</label>
+                <select id="modal-status-select">
+                    <option value="aberto">Aberto</option>
+                    <option value="pago">Pago</option>
+                    <option value="fiado">Fiado</option>
+                </select>
+            </div>
+
+            <div id="div-valor-pago" class="form-group" style="display: none;">
+                <label>Valor Pago (R$)</label>
+                <input type="number" id="modal-valor-pago" step="0.01" placeholder="Ex: 150.00">
+            </div>
+
+            <div id="div-data-vencimento" class="form-group" style="display: none;">
+                <label>Vencimento do Fiado</label>
+                <input type="date" id="modal-data-fiado">
+            </div>
+
+            <button id="save-status-btn" class="btn-glow">Salvar Alterações</button>
+            <button onclick="closeModal()" style="background:none; border:none; color: var(--text-light);">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot, query, where, orderBy, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configurações do Usuário (Fornecidas no prompt)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+            authDomain: "glam-studio-8b65c.firebaseapp.com",
+            projectId: "glam-studio-8b65c",
+            storageBucket: "glam-studio-8b65c.firebasestorage.app",
+            messagingSenderId: "154294556895",
+            appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+        };
+        
+        const CLIENT_ID = '1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com';
+        const API_KEY = firebaseConfig.apiKey;
+        const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
+
+        // Init Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+        provider.addScope(SCOPES);
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'glam-studio-default';
+        
+        let currentUser = null;
+        let selectedAttendanceId = null;
+
+        // --- Auth Logic ---
+        document.getElementById('google-login-btn').addEventListener('click', async () => {
+            try {
+                const result = await signInWithPopup(auth, provider);
+                const user = result.user;
+                // Salvar dados no firestore
+                await setDoc(doc(db, 'artifacts', appId, 'users', user.uid), {
+                    displayName: user.displayName,
+                    email: user.email,
+                    photoURL: user.photoURL,
+                    lastLogin: new Date()
+                }, { merge: true });
+            } catch (error) {
+                console.error("Login failed", error);
+            }
+        });
+
+        window.logout = () => {
+            signOut(auth);
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                updateUIForUser(user);
+                showScreen('dashboard-screen');
+                startAttendanceListener();
+            } else {
+                currentUser = null;
+                showScreen('login-screen');
+            }
+        });
+
+        // --- Navigation ---
+        window.showScreen = (screenId) => {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        };
+
+        function updateUIForUser(user) {
+            document.getElementById('user-display-name').textContent = user.displayName.split(' ')[0];
+            document.getElementById('user-profile-pic').src = user.photoURL;
+            document.getElementById('profile-img-lg').src = user.photoURL;
+            document.getElementById('profile-name').textContent = user.displayName;
+            document.getElementById('profile-email').textContent = user.email;
+        }
+
+        // --- Dashboard Data & Listener ---
+        function startAttendanceListener() {
+            if (!currentUser) return;
+
+            const q = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'atendimentos');
+            
+            onSnapshot(q, (snapshot) => {
+                const attendances = [];
+                snapshot.forEach(doc => attendances.push({ id: doc.id, ...doc.data() }));
+                
+                // Ordenar manualmente (Regra 2: No complex queries)
+                attendances.sort((a, b) => new Date(b.dataHora) - new Date(a.dataHora));
+                
+                renderAttendances(attendances);
+                updateStats(attendances);
+            }, (error) => {
+                console.error("Listener error:", error);
+            });
+        }
+
+        function renderAttendances(list) {
+            const container = document.getElementById('attendance-list');
+            if (list.length === 0) {
+                container.innerHTML = `<div style="text-align:center; padding: 40px; color: #999;">
+                    <i class="fa-regular fa-calendar-xmark" style="font-size: 3rem; margin-bottom: 15px;"></i>
+                    <p>Nenhum atendimento encontrado.<br>Sincronize sua agenda!</p>
+                </div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(item => {
+                const date = new Date(item.dataHora);
+                const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                const hourStr = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+                return `
+                    <div class="attendance-card glass" onclick="openStatusModal('${item.id}', '${item.cliente}', '${item.status}', '${item.valor}')">
+                        <div class="info-group">
+                            <h4>${item.cliente}</h4>
+                            <p>${item.servico}</p>
+                            <p style="font-size: 0.75rem;"><i class="fa-regular fa-clock"></i> ${dateStr} às ${hourStr}</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="font-weight: 600;">R$ ${Number(item.valor).toFixed(2)}</p>
+                            <span class="badge badge-${item.status}">${item.status}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateStats(list) {
+            let totalFaturamento = 0;
+            let totalPendente = 0;
+            let totalFiado = 0;
+            let count = list.length;
+
+            list.forEach(item => {
+                const v = parseFloat(item.valor) || 0;
+                if (item.status === 'pago') totalFaturamento += parseFloat(item.valorPago || v);
+                if (item.status === 'aberto') totalPendente += v;
+                if (item.status === 'fiado') totalFiado += v;
+            });
+
+            document.getElementById('stat-faturamento').textContent = `R$ ${totalFaturamento.toFixed(2)}`;
+            document.getElementById('stat-pendente').textContent = `R$ ${totalPendente.toFixed(2)}`;
+            document.getElementById('stat-fiado').textContent = `R$ ${totalFiado.toFixed(2)}`;
+            document.getElementById('stat-count').textContent = count;
+            document.getElementById('stat-ticket-medio').textContent = count > 0 ? `R$ ${( (totalFaturamento + totalPendente + totalFiado) / count).toFixed(2)}` : 'R$ 0,00';
+        }
+
+        // --- Google Calendar Sync ---
+        window.syncCalendar = async () => {
+            if (!currentUser) return;
+            
+            document.getElementById('sync-overlay').style.display = 'block';
+            
+            try {
+                // Obter token de acesso do Google
+                const tokenResponse = await gapi.client.getToken();
+                if (!tokenResponse) {
+                    const client = google.accounts.oauth2.initTokenClient({
+                        client_id: CLIENT_ID,
+                        scope: SCOPES,
+                        callback: (resp) => importEvents(resp.access_token),
+                    });
+                    client.requestAccessToken();
+                } else {
+                    await importEvents(tokenResponse.access_token);
+                }
+            } catch (e) {
+                console.error("Sync error", e);
+                document.getElementById('sync-overlay').textContent = "Erro na sincronização";
+                setTimeout(() => document.getElementById('sync-overlay').style.display = 'none', 3000);
+            }
+        };
+
+        async function importEvents(token) {
+            const now = new Date();
+            // Importar do início do mês atual por padrão
+            const timeMin = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+            
+            const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&singleEvents=true`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+
+            if (data.items) {
+                for (const event of data.items) {
+                    const desc = event.description || "";
+                    const lines = desc.split('\n');
+                    const servico = lines[0] || "Serviço não informado";
+                    const valor = lines[1] ? parseFloat(lines[1].replace(/[^\d.-]/g, '')) : 0;
+
+                    const eventId = event.id;
+                    const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'atendimentos', eventId);
+                    
+                    // Verificar se já existe para não sobrepor status modificado manualmente
+                    const existing = await getDoc(docRef);
+                    if (!existing.exists()) {
+                        await setDoc(docRef, {
+                            eventId: eventId,
+                            cliente: event.summary || "Sem Nome",
+                            servico: servico,
+                            valor: valor,
+                            dataHora: event.start.dateTime || event.start.date,
+                            status: "aberto",
+                            createdAt: new Date()
+                        });
+                    }
+                }
+            }
+
+            document.getElementById('sync-overlay').textContent = "Agenda Atualizada!";
+            setTimeout(() => document.getElementById('sync-overlay').style.display = 'none', 2000);
+        }
+
+        // --- Modal Logic ---
+        window.openStatusModal = (id, name, status, valor) => {
+            selectedAttendanceId = id;
+            document.getElementById('modal-client-name').textContent = name;
+            document.getElementById('modal-status-select').value = status;
+            document.getElementById('modal-valor-pago').value = valor;
+            
+            toggleModalFields(status);
+            document.getElementById('status-modal').style.display = 'flex';
+        };
+
+        window.closeModal = () => {
+            document.getElementById('status-modal').style.display = 'none';
+        };
+
+        const statusSelect = document.getElementById('modal-status-select');
+        statusSelect.addEventListener('change', (e) => toggleModalFields(e.target.value));
+
+        function toggleModalFields(status) {
+            document.getElementById('div-valor-pago').style.display = status === 'pago' ? 'flex' : 'none';
+            document.getElementById('div-data-vencimento').style.display = status === 'fiado' ? 'flex' : 'none';
+        }
+
+        document.getElementById('save-status-btn').addEventListener('click', async () => {
+            if (!selectedAttendanceId || !currentUser) return;
+
+            const status = document.getElementById('modal-status-select').value;
+            const valorPago = document.getElementById('modal-valor-pago').value;
+            const dataFiado = document.getElementById('modal-data-fiado').value;
+
+            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'atendimentos', selectedAttendanceId);
+            
+            await updateDoc(docRef, {
+                status: status,
+                valorPago: status === 'pago' ? valorPago : null,
+                dataFiado: status === 'fiado' ? dataFiado : null
+            });
+
+            closeModal();
+        });
+
+        window.openNewModal = () => {
+            // No futuro, implementar formulário de adição manual
+            // Por enquanto, incentiva o uso da agenda
+            const name = prompt("Nome da Cliente:");
+            if (name) {
+                const servico = prompt("Serviço:");
+                const valor = prompt("Valor:");
+                if(name && servico && valor) {
+                    addDoc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'atendimentos'), {
+                        cliente: name,
+                        servico: servico,
+                        valor: parseFloat(valor),
+                        dataHora: new Date().toISOString(),
+                        status: "aberto",
+                        createdAt: new Date()
+                    });
+                }
+            }
+        };
+
+    </script>
+
+    <!-- Google Identity Services & GAPI -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script>
+        function gapiLoaded() {
+            gapi.load('client', () => {
+                gapi.client.init({
+                    apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+                    discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
+                });
+            });
+        }
+        window.onload = gapiLoaded;
+    </script>
+</body>
+</html>
