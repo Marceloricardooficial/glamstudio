@@ -1,0 +1,394 @@
+html
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glam Studio Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #ff85a2;
+            --primary-glow: rgba(255, 133, 162, 0.6);
+            --glass: rgba(255, 255, 255, 0.15);
+            --glass-border: rgba(255, 255, 255, 0.25);
+            --text: #ffffff;
+        }
+
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background: #000;
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            /* Foto de fundo de salão de luxo */
+            background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), 
+                              url('https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=1920');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+
+        /* --- Efeito Glassmorphism Puro --- */
+        .glass {
+            background: var(--glass);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .screen { display: none; padding: 20px; animation: fadeIn 0.4s ease-out; }
+        .screen.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; filter: blur(10px); } to { opacity: 1; filter: blur(0); } }
+
+        /* --- Login --- */
+        #login-screen {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .login-card {
+            padding: 40px 20px;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .btn-google {
+            background: #fff;
+            color: #000;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 20px auto;
+            transition: 0.3s;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-google:hover { transform: scale(1.05); box-shadow: 0 0 30px var(--primary-glow); }
+
+        /* --- Dashboard --- */
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 30px; padding-top: 10px;
+        }
+
+        .profile-btn {
+            width: 45px; height: 45px; border-radius: 50%;
+            border: 2px solid var(--primary);
+            cursor: pointer; transition: 0.3s;
+        }
+
+        .stats-container {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::after {
+            content: ''; position: absolute; top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+            opacity: 0.1;
+        }
+
+        .stat-label { font-size: 0.75rem; color: #ddd; text-transform: uppercase; }
+        .stat-value { font-size: 1.25rem; font-weight: 600; display: block; margin-top: 5px; }
+
+        /* --- Atendimentos --- */
+        .attendance-item {
+            padding: 18px; margin-bottom: 15px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .status-badge {
+            font-size: 0.65rem; padding: 4px 12px; border-radius: 50px;
+            text-transform: uppercase; font-weight: 600;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .status-pago { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+        .status-fiado { color: #ffcc00; text-shadow: 0 0 10px rgba(255,204,0,0.5); }
+
+        /* --- FAB --- */
+        .fab {
+            position: fixed; bottom: 30px; right: 30px;
+            width: 65px; height: 65px; border-radius: 50%;
+            background: var(--primary);
+            color: white; display: flex; align-items: center; justify-content: center;
+            font-size: 28px; cursor: pointer;
+            box-shadow: 0 0 25px var(--primary-glow);
+            transition: 0.3s; z-index: 1000;
+        }
+        .fab:hover { transform: rotate(90deg) scale(1.1); }
+
+        /* --- Modal --- */
+        .modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+            display: none; align-items: center; justify-content: center; z-index: 2000;
+        }
+        .modal-content { width: 90%; max-width: 400px; padding: 30px; }
+        input, select {
+            width: 100%; padding: 12px; background: rgba(255,255,255,0.1);
+            border: 1px solid var(--glass-border); border-radius: 12px;
+            color: white; margin: 10px 0; outline: none;
+        }
+
+        #sync-loader {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 3000; padding: 10px 20px; border-radius: 50px;
+            display: none; font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sync-loader" class="glass"><i class="fas fa-sync fa-spin"></i> Sincronizando Agenda...</div>
+
+    <section id="login-screen" class="screen active">
+        <div class="login-card glass">
+            <h1 style="font-size: 2.5rem; margin-bottom: 10px;">Glam Pro</h1>
+            <p style="opacity: 0.8; margin-bottom: 30px;">Gestão de Beleza Premium</p>
+            <button class="btn-google" onclick="handleAuth()">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="20">
+                Entrar com Google
+            </button>
+        </div>
+    </section>
+
+    <section id="dashboard-screen" class="screen">
+        <div class="header">
+            <div>
+                <p style="opacity: 0.7;">Bem-vinda,</p>
+                <h2 id="user-name">Professional</h2>
+            </div>
+            <img id="user-pic" class="profile-btn" src="" onclick="toggleScreen('profile-screen')">
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-card glass" style="grid-column: span 2;">
+                <span class="stat-label">Faturamento Total</span>
+                <span class="stat-value" id="stat-total" style="font-size: 2rem; color: #00ff88;">R$ 0,00</span>
+            </div>
+            <div class="stat-card glass">
+                <span class="stat-label">Pendentes</span>
+                <span class="stat-value" id="stat-pendente">R$ 0,00</span>
+            </div>
+            <div class="stat-card glass">
+                <span class="stat-label">Fiados</span>
+                <span class="stat-value" id="stat-fiado" style="color: #ffcc00;">R$ 0,00</span>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3>Atendimentos</h3>
+            <i class="fas fa-calendar-alt" onclick="syncAgenda()" style="cursor:pointer; color: var(--primary);"></i>
+        </div>
+
+        <div id="list-container">
+            </div>
+    </section>
+
+    <section id="profile-screen" class="screen">
+        <div class="glass" style="padding: 40px 20px; text-align: center;">
+            <img id="profile-img-lg" src="" style="width: 100px; border-radius: 50%; margin-bottom: 20px; border: 3px solid var(--primary);">
+            <h2 id="profile-name-lg">Nome</h2>
+            <button onclick="logout()" class="btn-google" style="background: var(--primary); color: white; margin-top: 30px;">Sair do App</button>
+            <p onclick="toggleScreen('dashboard-screen')" style="margin-top: 20px; cursor: pointer; opacity: 0.6;">Voltar</p>
+        </div>
+    </section>
+
+    <div id="modal-status" class="modal">
+        <div class="modal-content glass">
+            <h3 id="m-cliente">Cliente</h3>
+            <select id="m-select-status">
+                <option value="aberto">Aberto</option>
+                <option value="pago">Pago</option>
+                <option value="fiado">Fiado</option>
+            </select>
+            <input type="number" id="m-valor-pago" placeholder="Valor recebido">
+            <button class="btn-google" style="background: var(--primary); color: white; width: 100%;" onclick="saveStatus()">Confirmar</button>
+            <button style="background: transparent; color: white; border: none; width: 100%; margin-top: 10px;" onclick="closeModal()">Cancelar</button>
+        </div>
+    </div>
+
+    <div class="fab" onclick="syncAgenda()"><i class="fas fa-sync"></i></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+            authDomain: "glam-studio-8b65c.firebaseapp.com",
+            projectId: "glam-studio-8b65c",
+            storageBucket: "glam-studio-8b65c.firebasestorage.app",
+            messagingSenderId: "154294556895",
+            appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+        };
+
+        const CLIENT_ID = '1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com';
+        const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+        provider.addScope(SCOPES);
+
+        let userUid = null;
+        let selectedId = null;
+        let googleToken = null;
+
+        // AUTH
+        window.handleAuth = async () => {
+            try {
+                const result = await signInWithPopup(auth, provider);
+                googleToken = GoogleAuthProvider.credentialFromResult(result).accessToken;
+                localStorage.setItem('g_token', googleToken);
+            } catch (e) { alert("Erro no Login: " + e.message); }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userUid = user.uid;
+                document.getElementById('user-name').innerText = user.displayName.split(' ')[0];
+                document.getElementById('user-pic').src = user.photoURL;
+                document.getElementById('profile-img-lg').src = user.photoURL;
+                document.getElementById('profile-name-lg').innerText = user.displayName;
+                toggleScreen('dashboard-screen');
+                listenAtendimentos();
+            } else {
+                toggleScreen('login-screen');
+            }
+        });
+
+        window.logout = () => signOut(auth);
+
+        // NAVEGAÇÃO
+        window.toggleScreen = (id) => {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        };
+
+        // SYNC AGENDA
+        window.syncAgenda = async () => {
+            if (!googleToken) {
+                googleToken = localStorage.getItem('g_token');
+                if(!googleToken) return handleAuth();
+            }
+
+            document.getElementById('sync-loader').style.display = 'block';
+
+            try {
+                const timeMin = new Date().toISOString();
+                const resp = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&singleEvents=true`, {
+                    headers: { 'Authorization': `Bearer ${googleToken}` }
+                });
+                const data = await resp.json();
+
+                if (data.items) {
+                    for (const event of data.items) {
+                        const desc = event.description || "";
+                        const lines = desc.split('\n');
+                        const servico = lines[0] || "Serviço";
+                        const valor = lines[1] ? parseFloat(lines[1]) : 0;
+
+                        const ref = doc(db, "users", userUid, "atendimentos", event.id);
+                        await setDoc(ref, {
+                            id: event.id,
+                            cliente: event.summary || "Cliente",
+                            servico: servico,
+                            valor: valor,
+                            data: event.start.dateTime || event.start.date,
+                            status: "aberto"
+                        }, { merge: true });
+                    }
+                }
+                document.getElementById('sync-loader').innerText = "Sincronizado!";
+                setTimeout(() => document.getElementById('sync-loader').style.display = 'none', 2000);
+            } catch (e) {
+                console.error(e);
+                document.getElementById('sync-loader').innerText = "Erro na Agenda";
+            }
+        };
+
+        // LISTENER FIRESTORE
+        function listenAtendimentos() {
+            const q = collection(db, "users", userUid, "atendimentos");
+            onSnapshot(q, (snap) => {
+                let html = "";
+                let faturamento = 0, pendente = 0, fiado = 0;
+
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const val = parseFloat(d.valor) || 0;
+                    
+                    if (d.status === 'pago') faturamento += val;
+                    else if (d.status === 'fiado') fiado += val;
+                    else pendente += val;
+
+                    html += `
+                        <div class="attendance-item glass" onclick="openModal('${doc.id}', '${d.cliente}', '${d.valor}')">
+                            <div>
+                                <strong>${d.cliente}</strong><br>
+                                <small style="opacity:0.7">${d.servico} - R$ ${val.toFixed(2)}</small>
+                            </div>
+                            <span class="status-badge status-${d.status}">${d.status}</span>
+                        </div>
+                    `;
+                });
+
+                document.getElementById('list-container').innerHTML = html;
+                document.getElementById('stat-total').innerText = `R$ ${faturamento.toFixed(2)}`;
+                document.getElementById('stat-pendente').innerText = `R$ ${pendente.toFixed(2)}`;
+                document.getElementById('stat-fiado').innerText = `R$ ${fiado.toFixed(2)}`;
+            });
+        }
+
+        // MODAL LOGIC
+        window.openModal = (id, nome, valor) => {
+            selectedId = id;
+            document.getElementById('m-cliente').innerText = nome;
+            document.getElementById('m-valor-pago').value = valor;
+            document.getElementById('modal-status').style.display = 'flex';
+        };
+
+        window.closeModal = () => document.getElementById('modal-status').style.display = 'none';
+
+        window.saveStatus = async () => {
+            const status = document.getElementById('m-select-status').value;
+            const valor = document.getElementById('m-valor-pago').value;
+            await updateDoc(doc(db, "users", userUid, "atendimentos", selectedId), {
+                status: status,
+                valor: valor
+            });
+            closeModal();
+        };
+
+    </script>
+</body>
+</html>
