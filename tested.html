@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Glam Studio • Atendimentos</title>
+  <!-- Fontes & Estilos base -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      background: #f5f7fa;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      color: #1e1e2f;
+    }
+
+    /* Efeito glassmorphism base */
+    .glass-card, .container, .modal-content, .nav-bar, .fab, button.glass {
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 8px 20px -6px rgba(0, 0, 0, 0.02);
+    }
+
+    /* Container principal (app) */
+    #app-container {
+      max-width: 480px;
+      width: 100%;
+      margin: 0 auto;
+      border-radius: 36px;
+      padding: 20px 16px 28px;
+      background: rgba(255, 255, 255, 0.45);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.08), 0 4px 18px rgba(0, 0, 0, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+    }
+
+    /* Telas */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* Login */
+    #login-container {
+      max-width: 400px;
+      width: 100%;
+      margin: 0 auto;
+      text-align: center;
+      padding: 40px 24px;
+      border-radius: 40px;
+    }
+    .login-title {
+      font-weight: 500;
+      font-size: 28px;
+      letter-spacing: -0.5px;
+      margin-bottom: 32px;
+      color: #2d2d44;
+    }
+    .btn-glow {
+      background: linear-gradient(135deg, #fff0f5 0%, #ffe4ec 100%);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      padding: 18px 28px;
+      border-radius: 60px;
+      font-weight: 600;
+      font-size: 18px;
+      color: #b3406c;
+      box-shadow: 0 8px 20px rgba(210, 80, 120, 0.15), 0 0 0 2px rgba(255, 200, 220, 0.5);
+      backdrop-filter: blur(10px);
+      transition: all 0.2s ease;
+      cursor: pointer;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    .btn-glow:active {
+      transform: scale(0.97);
+      box-shadow: 0 4px 12px rgba(210, 80, 120, 0.2);
+    }
+
+    /* Dashboard header */
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .greeting h2 {
+      font-weight: 500;
+      font-size: 22px;
+      color: #1e1e2f;
+    }
+    .greeting p {
+      color: #6b6b8a;
+      font-size: 14px;
+    }
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 30px;
+      background: #ffe0e8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+      color: #b3406c;
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.02);
+      overflow: hidden;
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* Cards resumo */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: rgba(255, 255, 255, 0.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 16px 12px;
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.6);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.02);
+    }
+    .stat-label {
+      font-size: 13px;
+      color: #6b6b8a;
+      margin-bottom: 6px;
+      font-weight: 400;
+    }
+    .stat-value {
+      font-size: 26px;
+      font-weight: 600;
+      color: #1e1e2f;
+      letter-spacing: -0.5px;
+    }
+    .stat-sub {
+      font-size: 13px;
+      color: #8e8ea3;
+      margin-top: 4px;
+    }
+
+    /* Lista de atendimentos */
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin: 20px 0 12px;
+    }
+    .section-title h3 { font-weight: 500; font-size: 18px; }
+    .filters {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .filter-btn {
+      background: rgba(255,255,240,0.6);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255,255,255,0.8);
+      padding: 8px 14px;
+      border-radius: 30px;
+      font-size: 13px;
+      color: #3a3a5c;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+      cursor: pointer;
+    }
+    .filter-btn.active {
+      background: #ffe4ec;
+      border-color: #ffb6c1;
+      color: #a53860;
+      font-weight: 500;
+    }
+
+    .atendimento-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 380px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .atendimento-item {
+      background: rgba(255, 255, 255, 0.5);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 16px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.8);
+      box-shadow: 0 6px 12px -6px rgba(0,0,0,0.04);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .atendimento-item:active { background: rgba(255,255,255,0.8); }
+    .item-info h4 { font-weight: 600; font-size: 16px; }
+    .item-info p { font-size: 13px; color: #5a5a7a; margin-top: 2px; }
+    .item-right { text-align: right; }
+    .item-valor { font-weight: 600; }
+    .status-badge {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 30px;
+      background: #eaeef5;
+      margin-top: 6px;
+      display: inline-block;
+    }
+    .status-aberto { background: #fff1e0; color: #b45a2e; }
+    .status-pago { background: #e0f2e9; color: #1e7b5c; }
+    .status-fiado { background: #fce4e8; color: #b3406c; }
+
+    /* FAB */
+    .fab {
+      position: sticky;
+      bottom: 8px;
+      margin-top: 24px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .fab-btn {
+      background: linear-gradient(145deg, #ffe4ec, #ffd9e5);
+      border: 1px solid rgba(255,255,255,0.9);
+      box-shadow: 0 12px 28px -8px rgba(210,80,120,0.3), 0 0 0 4px rgba(255,220,230,0.4);
+      backdrop-filter: blur(12px);
+      padding: 16px 28px;
+      border-radius: 60px;
+      font-weight: 600;
+      color: #a53860;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .fab-btn:active { transform: scale(0.96); }
+
+    /* Modais */
+    .modal {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.2);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+    .modal.active { display: flex; }
+    .modal-content {
+      max-width: 420px;
+      width: 100%;
+      padding: 24px 20px;
+      border-radius: 36px;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(20px);
+    }
+    .modal-content h3 { margin-bottom: 20px; font-weight: 500; }
+    .input-group {
+      margin-bottom: 18px;
+    }
+    .input-group label {
+      font-size: 13px;
+      color: #4a4a6a;
+      display: block;
+      margin-bottom: 6px;
+    }
+    .input-group input, .input-group select {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 30px;
+      border: 1px solid rgba(0,0,0,0.05);
+      background: rgba(255,255,255,0.8);
+      font-family: inherit;
+      font-size: 15px;
+      outline: none;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .btn {
+      padding: 14px 20px;
+      border-radius: 40px;
+      border: none;
+      font-weight: 500;
+      background: white;
+      flex: 1;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: #ffd0dd;
+      color: #a53860;
+      box-shadow: 0 4px 10px rgba(200,80,120,0.1);
+    }
+
+    /* Perfil / Config */
+    .profile-section {
+      padding: 8px 0;
+    }
+    .profile-header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    .profile-pic-large {
+      width: 70px; height: 70px; border-radius: 40px; background: #ffe0e8;
+    }
+    .menu-item {
+      padding: 18px 0;
+      border-bottom: 1px solid rgba(0,0,0,0.03);
+      cursor: pointer;
+    }
+
+    /* Utils */
+    .text-right { text-align: right; }
+    .mt-4 { margin-top: 16px; }
+    .hidden { display: none !important; }
+    .back-btn {
+      font-size: 24px; line-height: 1; cursor: pointer; margin-right: 8px;
+    }
+    .sync-btn {
+      background: none; border: none; font-size: 20px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<div id="login-container" class="glass-card screen active">
+  <div class="login-title">✨ Glam Studio</div>
+  <button id="google-login-btn" class="btn-glow">
+    <span>🔐</span> Entrar com Google
+  </button>
+  <p style="margin-top: 24px; font-size: 13px; color: #7a7a9a;">Conecte sua agenda automaticamente</p>
+</div>
+
+<div id="app-container" class="screen">
+  <!-- Navegação entre Dashboard e Perfil -->
+  <div id="dashboard-view" class="screen active">
+    <div class="app-header">
+      <div class="greeting">
+        <h2>Olá, <span id="user-name">...</span></h2>
+        <p id="current-date"></p>
+      </div>
+      <div class="avatar" id="profile-avatar-btn">
+        <img id="user-photo" src="" alt="perfil" style="display: none;">
+        <span id="avatar-fallback">👤</span>
+      </div>
+    </div>
+
+    <!-- Cards de resumo -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">💰 Faturamento</div>
+        <div class="stat-value" id="total-faturado">R$ 0</div>
+        <div class="stat-sub">período</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">⏳ Pendente</div>
+        <div class="stat-value" id="total-pendente">R$ 0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">📋 Fiado</div>
+        <div class="stat-value" id="total-fiado">R$ 0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">📊 Ticket médio</div>
+        <div class="stat-value" id="ticket-medio">R$ 0</div>
+        <div class="stat-sub" id="qtd-atendimentos">0 atend.</div>
+      </div>
+    </div>
+
+    <!-- Filtros + sync -->
+    <div class="section-title">
+      <h3>Atendimentos</h3>
+      <button id="sync-calendar-btn" class="sync-btn" title="Sincronizar agenda">🔄</button>
+    </div>
+    <div class="filters">
+      <button class="filter-btn active" data-filter="todos">Todos</button>
+      <button class="filter-btn" data-filter="aberto">Abertos</button>
+      <button class="filter-btn" data-filter="pago">Pagos</button>
+      <button class="filter-btn" data-filter="fiado">Fiado</button>
+      <input type="text" id="filtro-cliente" placeholder="🔍 Cliente" style="border-radius:30px; border:none; padding:8px 16px; background: rgba(255,255,255,0.5);">
+    </div>
+
+    <div id="atendimento-list" class="atendimento-list">
+      <!-- Itens dinâmicos -->
+      <div style="text-align:center; padding:20px; color:#888;">Carregando...</div>
+    </div>
+
+    <!-- FAB -->
+    <div class="fab">
+      <button id="novo-atendimento-btn" class="fab-btn">✨ + Novo atendimento</button>
+    </div>
+  </div>
+
+  <!-- Perfil / Configuração -->
+  <div id="profile-view" class="screen">
+    <div style="display: flex; align-items: center; margin-bottom: 20px;">
+      <span class="back-btn" id="back-from-profile">←</span>
+      <h3 style="font-weight: 500;">Perfil</h3>
+    </div>
+    <div class="profile-section">
+      <div class="profile-header">
+        <div class="profile-pic-large avatar" style="width:70px;height:70px;">
+          <img id="profile-img-large" src="" style="display:none;">
+          <span id="profile-fallback">👤</span>
+        </div>
+        <div>
+          <h3 id="profile-name">Usuária</h3>
+          <p id="profile-email" style="color:#6b6b8a;"></p>
+        </div>
+      </div>
+      <div class="menu-item" id="menu-config">⚙️ Configurações (API Keys)</div>
+      <div class="menu-item" id="menu-logout">🚪 Sair</div>
+    </div>
+  </div>
+
+  <!-- Tela de configuração (modal-like) -->
+  <div id="config-view" class="screen" style="padding:10px 0;">
+    <div style="display:flex; align-items:center; margin-bottom:20px;">
+      <span class="back-btn" id="back-from-config">←</span>
+      <h3>Configurações</h3>
+    </div>
+    <div class="input-group">
+      <label>Firebase API Key</label>
+      <input type="text" id="config-apiKey" placeholder="AIza...">
+    </div>
+    <div class="input-group">
+      <label>Auth Domain</label>
+      <input type="text" id="config-authDomain">
+    </div>
+    <div class="input-group">
+      <label>Project ID</label>
+      <input type="text" id="config-projectId">
+    </div>
+    <div class="input-group">
+      <label>Google Client ID</label>
+      <input type="text" id="config-clientId">
+    </div>
+    <button class="btn btn-primary" id="save-config-btn" style="margin-top:16px;">Salvar & Reiniciar</button>
+  </div>
+</div>
+
+<!-- Modais -->
+<div id="modal-novo" class="modal">
+  <div class="modal-content">
+    <h3>Novo atendimento</h3>
+    <div class="input-group"><label>Cliente</label><input id="novo-cliente" placeholder="Nome"></div>
+    <div class="input-group"><label>Serviço</label><input id="novo-servico" placeholder="Ex: Cabelo"></div>
+    <div class="input-group"><label>Valor (R$)</label><input id="novo-valor" type="number" step="0.01"></div>
+    <div class="input-group"><label>Data/Hora</label><input id="novo-datahora" type="datetime-local"></div>
+    <div class="modal-actions">
+      <button class="btn" id="cancel-novo">Cancelar</button>
+      <button class="btn btn-primary" id="save-novo">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-finalizar" class="modal">
+  <div class="modal-content">
+    <h3>Finalizar atendimento</h3>
+    <p id="finalizar-cliente-info"></p>
+    <div class="input-group">
+      <label>Status</label>
+      <select id="finalizar-status">
+        <option value="pago">Pago</option>
+        <option value="aberto">Não pago (aberto)</option>
+        <option value="fiado">Fiado</option>
+      </select>
+    </div>
+    <div id="finalizar-pago-group" class="input-group">
+      <label>Valor pago (R$)</label>
+      <input id="finalizar-valor-pago" type="number" step="0.01">
+    </div>
+    <div id="finalizar-fiado-group" class="input-group hidden">
+      <label>Vencimento fiado</label>
+      <input id="finalizar-data-fiado" type="date">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="cancel-finalizar">Cancelar</button>
+      <button class="btn btn-primary" id="confirm-finalizar">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-importar" class="modal">
+  <div class="modal-content">
+    <h3>Importar agenda</h3>
+    <p>A partir de qual mês/ano?</p>
+    <div class="input-group"><input type="month" id="import-mes-ano"></div>
+    <div class="modal-actions">
+      <button class="btn" id="cancel-import">Cancelar</button>
+      <button class="btn btn-primary" id="confirm-import">Importar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase + Google scripts -->
+<script type="module">
+  // ======================= CONFIGURAÇÕES (podem ser sobrescritas no localStorage) =======================
+  const DEFAULT_CONFIG = {
+    firebase: {
+      apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+      authDomain: "glam-studio-8b65c.firebaseapp.com",
+      projectId: "glam-studio-8b65c",
+      storageBucket: "glam-studio-8b65c.firebasestorage.app",
+      messagingSenderId: "154294556895",
+      appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+    },
+    googleClientId: "1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com"
+  };
+
+  // Carrega config do localStorage ou usa padrão
+  let appConfig = JSON.parse(localStorage.getItem('glam_config')) || DEFAULT_CONFIG;
+  
+  // Inicialização Firebase (usando compat)
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithCredential, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore, collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, doc, getDocs, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  let app, auth, db;
+  let currentUser = null;
+  let accessToken = null;
+  let tokenClient = null;
+  let atendimentosListener = null;
+  let atendimentosCache = [];
+
+  // Inicializa Firebase com config atual
+  function initFirebase() {
+    app = initializeApp(appConfig.firebase);
+    auth = getAuth(app);
+    db = getFirestore(app);
+  }
+  initFirebase();
+
+  // Referências DOM
+  const loginContainer = document.getElementById('login-container');
+  const appContainer = document.getElementById('app-container');
+  const dashboardView = document.getElementById('dashboard-view');
+  const profileView = document.getElementById('profile-view');
+  const configView = document.getElementById('config-view');
+  const userNameSpan = document.getElementById('user-name');
+  const userPhoto = document.getElementById('user-photo');
+  const avatarFallback = document.getElementById('avatar-fallback');
+  
+  // Google Identity
+  function initGoogleIdentity() {
+    if (tokenClient) return;
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: appConfig.googleClientId,
+      scope: 'email profile openid https://www.googleapis.com/auth/calendar.readonly',
+      callback: async (resp) => {
+        if (resp.error) return alert('Erro Google: ' + resp.error);
+        accessToken = resp.access_token;
+        // Login Firebase com credencial Google
+        const credential = GoogleAuthProvider.credential(null, accessToken);
+        try {
+          const result = await signInWithCredential(auth, credential);
+          currentUser = result.user;
+          await saveUserToFirestore(currentUser);
+          // Verifica se é primeiro acesso (pergunta importação)
+          checkFirstImport();
+        } catch (e) { alert('Erro auth: '+e.message); }
+      },
+    });
+  }
+
+  // Salvar usuário no Firestore
+  async function saveUserToFirestore(user) {
+    const userRef = doc(db, 'usuarios', user.uid);
+    await updateDoc(userRef, {
+      nome: user.displayName,
+      email: user.email,
+      foto: user.photoURL,
+      ultimoAcesso: new Date()
+    }).catch(() => addDoc(collection(db, 'usuarios'), { ... })); // simplificado
+  }
+
+  // Verificar primeiro acesso / importação
+  function checkFirstImport() {
+    const importou = localStorage.getItem('glam_importou_'+currentUser.uid);
+    if (!importou) {
+      document.getElementById('modal-importar').classList.add('active');
+    }
+  }
+
+  // UI updates
+  function updateUIAfterLogin(user) {
+    loginContainer.classList.remove('active');
+    appContainer.classList.add('active');
+    dashboardView.classList.add('active');
+    profileView.classList.remove('active');
+    configView.classList.remove('active');
+    userNameSpan.textContent = user.displayName?.split(' ')[0] || 'Usuária';
+    if (user.photoURL) {
+      userPhoto.src = user.photoURL;
+      userPhoto.style.display = 'block';
+      avatarFallback.style.display = 'none';
+      document.getElementById('profile-img-large').src = user.photoURL;
+    }
+    document.getElementById('profile-name').textContent = user.displayName;
+    document.getElementById('profile-email').textContent = user.email;
+    // Data atual
+    document.getElementById('current-date').textContent = new Date().toLocaleDateString('pt-BR', {month:'long', year:'numeric'});
+    
+    // Carregar atendimentos
+    loadAtendimentos();
+  }
+
+  // Carregar atendimentos com listener
+  function loadAtendimentos() {
+    if (!currentUser) return;
+    const q = query(collection(db, 'atendimentos'), where('uid', '==', currentUser.uid), orderBy('dataHora', 'desc'));
+    if (atendimentosListener) atendimentosListener();
+    atendimentosListener = onSnapshot(q, (snapshot) => {
+      atendimentosCache = [];
+      snapshot.forEach(doc => { atendimentosCache.push({ id: doc.id, ...doc.data() }); });
+      renderAtendimentos();
+      updateStats();
+    });
+  }
+
+  let filtroAtual = 'todos';
+  function renderAtendimentos() {
+    const lista = document.getElementById('atendimento-list');
+    const termo = document.getElementById('filtro-cliente')?.value.toLowerCase() || '';
+    let filtrados = atendimentosCache.filter(a => {
+      if (filtroAtual !== 'todos' && a.status !== filtroAtual) return false;
+      if (termo && !a.cliente.toLowerCase().includes(termo)) return false;
+      return true;
+    });
+    if (filtrados.length === 0) {
+      lista.innerHTML = '<div style="text-align:center; padding:20px;">Nenhum atendimento</div>';
+      return;
+    }
+    lista.innerHTML = filtrados.map(a => {
+      const data = a.dataHora?.toDate ? a.dataHora.toDate() : new Date(a.dataHora);
+      return `
+        <div class="atendimento-item" data-id="${a.id}">
+          <div class="item-info">
+            <h4>${a.cliente}</h4>
+            <p>${a.servico} • ${data.toLocaleDateString()} ${data.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</p>
+          </div>
+          <div class="item-right">
+            <div class="item-valor">R$ ${a.valor?.toFixed(2)}</div>
+            <span class="status-badge status-${a.status}">${a.status}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+    document.querySelectorAll('.atendimento-item').forEach(el => {
+      el.addEventListener('click', () => abrirFinalizar(el.dataset.id));
+    });
+  }
+
+  function updateStats() {
+    let faturado = 0, pendente = 0, fiado = 0, qtd = atendimentosCache.length;
+    atendimentosCache.forEach(a => {
+      if (a.status === 'pago') faturado += a.valorPago || a.valor;
+      else if (a.status === 'aberto') pendente += a.valor;
+      else if (a.status === 'fiado') fiado += a.valor;
+    });
+    document.getElementById('total-faturado').textContent = `R$ ${faturado.toFixed(2)}`;
+    document.getElementById('total-pendente').textContent = `R$ ${pendente.toFixed(2)}`;
+    document.getElementById('total-fiado').textContent = `R$ ${fiado.toFixed(2)}`;
+    const ticket = qtd ? (faturado / qtd) : 0;
+    document.getElementById('ticket-medio').textContent = `R$ ${ticket.toFixed(2)}`;
+    document.getElementById('qtd-atendimentos').textContent = `${qtd} atend.`;
+  }
+
+  // Finalizar
+  let atendimentoSelecionado = null;
+  function abrirFinalizar(id) {
+    atendimentoSelecionado = atendimentosCache.find(a => a.id === id);
+    if (!atendimentoSelecionado) return;
+    document.getElementById('finalizar-cliente-info').textContent = `${atendimentoSelecionado.cliente} - ${atendimentoSelecionado.servico}`;
+    document.getElementById('finalizar-status').value = atendimentoSelecionado.status;
+    document.getElementById('finalizar-valor-pago').value = atendimentoSelecionado.valorPago || atendimentoSelecionado.valor;
+    document.getElementById('modal-finalizar').classList.add('active');
+    toggleFinalizarCampos();
+  }
+
+  // Google Calendar import
+  async function importFromCalendar(monthYear) {
+    if (!accessToken) return alert('Token inválido');
+    const [year, month] = monthYear.split('-');
+    const startDate = new Date(year, month-1, 1).toISOString();
+    const endDate = new Date(year, month, 0, 23,59,59).toISOString();
+    const resp = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startDate}&timeMax=${endDate}&singleEvents=true&orderBy=startTime`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const data = await resp.json();
+    const events = data.items || [];
+    let imported = 0;
+    for (const ev of events) {
+      if (!ev.description || !ev.start?.dateTime) continue;
+      const linhas = ev.description.split('\n');
+      const servico = linhas[0]?.trim();
+      const valorStr = linhas[1]?.replace(/[^0-9.,]/g,'').replace(',','.');
+      const valor = parseFloat(valorStr) || 0;
+      const cliente = ev.summary || 'Sem nome';
+      const dataHora = new Date(ev.start.dateTime);
+      // Verificar duplicação por eventId
+      const exist = await getDocs(query(collection(db, 'atendimentos'), where('eventId', '==', ev.id), limit(1)));
+      if (!exist.empty) continue;
+      await addDoc(collection(db, 'atendimentos'), {
+        uid: currentUser.uid,
+        cliente, servico, valor, dataHora,
+        status: 'aberto', valorPago: 0,
+        eventId: ev.id
+      });
+      imported++;
+    }
+    alert(`${imported} eventos importados.`);
+    localStorage.setItem('glam_importou_'+currentUser.uid, 'true');
+  }
+
+  // Event Listeners
+  document.getElementById('google-login-btn').addEventListener('click', () => {
+    initGoogleIdentity();
+    tokenClient.requestAccessToken();
+  });
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) { currentUser = user; updateUIAfterLogin(user); }
+    else { loginContainer.classList.add('active'); appContainer.classList.remove('active'); }
+  });
+
+  // Sincronizar manual
+  document.getElementById('sync-calendar-btn').addEventListener('click', () => {
+    document.getElementById('modal-importar').classList.add('active');
+  });
+  document.getElementById('confirm-import').addEventListener('click', async () => {
+    const mes = document.getElementById('import-mes-ano').value;
+    if (!mes) return alert('Selecione mês/ano');
+    await importFromCalendar(mes);
+    document.getElementById('modal-importar').classList.remove('active');
+  });
+  
+  // Navegação
+  document.getElementById('profile-avatar-btn').addEventListener('click', ()=>{
+    dashboardView.classList.remove('active');
+    profileView.classList.add('active');
+  });
+  document.getElementById('back-from-profile').addEventListener('click', ()=>{
+    profileView.classList.remove('active');
+    dashboardView.classList.add('active');
+  });
+  document.getElementById('menu-config').addEventListener('click', ()=>{
+    profileView.classList.remove('active');
+    configView.classList.add('active');
+    // preencher inputs
+    document.getElementById('config-apiKey').value = appConfig.firebase.apiKey;
+    document.getElementById('config-authDomain').value = appConfig.firebase.authDomain;
+    document.getElementById('config-projectId').value = appConfig.firebase.projectId;
+    document.getElementById('config-clientId').value = appConfig.googleClientId;
+  });
+  document.getElementById('back-from-config').addEventListener('click', ()=>{
+    configView.classList.remove('active');
+    profileView.classList.add('active');
+  });
+  document.getElementById('save-config-btn').addEventListener('click', ()=>{
+    const newConfig = {
+      firebase: {
+        apiKey: document.getElementById('config-apiKey').value,
+        authDomain: document.getElementById('config-authDomain').value,
+        projectId: document.getElementById('config-projectId').value,
+        storageBucket: appConfig.firebase.storageBucket,
+        messagingSenderId: appConfig.firebase.messagingSenderId,
+        appId: appConfig.firebase.appId
+      },
+      googleClientId: document.getElementById('config-clientId').value
+    };
+    localStorage.setItem('glam_config', JSON.stringify(newConfig));
+    alert('Configurações salvas. Recarregue a página.');
+  });
+  document.getElementById('menu-logout').addEventListener('click', ()=> signOut(auth));
+  
+  // FAB novo atendimento
+  document.getElementById('novo-atendimento-btn').addEventListener('click', ()=>{
+    document.getElementById('modal-novo').classList.add('active');
+  });
+  document.getElementById('cancel-novo').addEventListener('click', ()=> document.getElementById('modal-novo').classList.remove('active'));
+  document.getElementById('save-novo').addEventListener('click', async ()=>{
+    const cliente = document.getElementById('novo-cliente').value;
+    const servico = document.getElementById('novo-servico').value;
+    const valor = parseFloat(document.getElementById('novo-valor').value);
+    const dataHora = new Date(document.getElementById('novo-datahora').value);
+    if (!cliente||!servico||!valor) return alert('Preencha todos');
+    await addDoc(collection(db, 'atendimentos'), {
+      uid: currentUser.uid, cliente, servico, valor, dataHora,
+      status: 'aberto', valorPago: 0
+    });
+    document.getElementById('modal-novo').classList.remove('active');
+  });
+
+  // Finalizar modal lógica
+  function toggleFinalizarCampos() {
+    const status = document.getElementById('finalizar-status').value;
+    document.getElementById('finalizar-pago-group').classList.toggle('hidden', status !== 'pago');
+    document.getElementById('finalizar-fiado-group').classList.toggle('hidden', status !== 'fiado');
+  }
+  document.getElementById('finalizar-status').addEventListener('change', toggleFinalizarCampos);
+  document.getElementById('confirm-finalizar').addEventListener('click', async ()=>{
+    if (!atendimentoSelecionado) return;
+    const status = document.getElementById('finalizar-status').value;
+    const updateData = { status };
+    if (status === 'pago') updateData.valorPago = parseFloat(document.getElementById('finalizar-valor-pago').value) || atendimentoSelecionado.valor;
+    if (status === 'fiado') updateData.dataFiado = new Date(document.getElementById('finalizar-data-fiado').value);
+    await updateDoc(doc(db, 'atendimentos', atendimentoSelecionado.id), updateData);
+    document.getElementById('modal-finalizar').classList.remove('active');
+  });
+  document.getElementById('cancel-finalizar').addEventListener('click', ()=> document.getElementById('modal-finalizar').classList.remove('active'));
+  document.getElementById('cancel-import').addEventListener('click', ()=> document.getElementById('modal-importar').classList.remove('active'));
+
+  // Filtros
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      filtroAtual = btn.dataset.filter;
+      renderAtendimentos();
+    });
+  });
+  document.getElementById('filtro-cliente').addEventListener('input', renderAtendimentos);
+  
+  // Google API script carregado?
+  window.onGoogleLoad = function() { console.log('GIS ready'); };
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>
