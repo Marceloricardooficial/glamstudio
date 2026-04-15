@@ -1,0 +1,2346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#C9597A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Glam Studio">
+<meta name="description" content="Controle financeiro para cabeleireiras">
+<title>Glam Studio — Controle Financeiro</title>
+
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet">
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+  import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc, deleteDoc, addDoc, orderBy, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+    authDomain: "glam-studio-8b65c.firebaseapp.com",
+    projectId: "glam-studio-8b65c",
+    storageBucket: "glam-studio-8b65c.firebasestorage.app",
+    messagingSenderId: "154294556895",
+    appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // Google OAuth Client ID
+  const GOOGLE_CLIENT_ID = '1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com';
+  const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+
+  // ============================================================
+  // APP STATE
+  // ============================================================
+  const state = {
+    user: null,
+    accessToken: null,
+    appointments: [], // { id, title, date, time, value, status, calendarEventId, description }
+    currentScreen: 'login',
+    selectedDate: new Date(),
+    calendarViewDate: new Date(),
+    financesViewDate: new Date(),
+    syncing: false,
+    importPeriod: 'current', // current | last | last2 | custom
+    customStart: null,
+    customEnd: null,
+    editingAppointment: null,
+    toastTimeout: null,
+  };
+
+  // ============================================================
+  // UTILS
+  // ============================================================
+  function formatCurrency(val) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+  }
+
+  function parseValue(str) {
+    if (!str) return 0;
+    str = String(str).replace(/R\$\s*/gi, '').replace(/\./g, '').replace(',', '.').trim();
+    const n = parseFloat(str);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function extractValueFromDescription(desc) {
+    if (!desc) return 0;
+    // Matches: R$ 100, R$100, 100.00, 100,00, valor: 150, valor 150
+    const patterns = [
+      /R\$\s*(\d+(?:[.,]\d{1,2})?)/i,
+      /valor[:\s]+(\d+(?:[.,]\d{1,2})?)/i,
+      /^(\d+(?:[.,]\d{1,2})?)$/m,
+      /(\d+(?:[.,]\d{1,2})?)/,
+    ];
+    for (const p of patterns) {
+      const m = desc.match(p);
+      if (m) return parseValue(m[1]);
+    }
+    return 0;
+  }
+
+  function formatDate(d) {
+    if (!d) return '';
+    const dt = d instanceof Date ? d : new Date(d);
+    return dt.toLocaleDateString('pt-BR');
+  }
+
+  function isSameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate();
+  }
+
+  function toDateKey(d) {
+    const dt = d instanceof Date ? d : new Date(d);
+    return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  }
+
+  function showToast(msg, type = 'info') {
+    const t = document.getElementById('toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.className = `toast toast-${type} show`;
+    clearTimeout(state.toastTimeout);
+    state.toastTimeout = setTimeout(() => { t.classList.remove('show'); }, 3200);
+  }
+
+  function showScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById(`screen-${name}`);
+    if (el) {
+      el.classList.add('active');
+      // Animate in
+      el.style.animation = 'none';
+      el.offsetHeight;
+      el.style.animation = 'screenIn 0.35s cubic-bezier(.4,0,.2,1)';
+    }
+    state.currentScreen = name;
+    // Update nav
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const nb = document.querySelector(`.nav-btn[data-screen="${name}"]`);
+    if (nb) nb.classList.add('active');
+    // Render the screen
+    if (name === 'home') renderHome();
+    if (name === 'agenda') renderAgenda();
+    if (name === 'finances') renderFinances();
+  }
+
+  // ============================================================
+  // FIREBASE AUTH
+  // ============================================================
+  async function loginWithGoogle() {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope(CALENDAR_SCOPE);
+      provider.setCustomParameters({ access_type: 'online', prompt: 'consent' });
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      state.accessToken = credential.accessToken;
+      state.user = result.user;
+      await saveUserToFirestore(result.user);
+      showToast('Login realizado com sucesso! ✨', 'success');
+      await loadAppointmentsFromFirestore();
+      showScreen('home');
+      showNav(true);
+      // Show import modal
+      setTimeout(() => showImportModal(), 600);
+    } catch (e) {
+      console.error(e);
+      showToast('Erro ao fazer login. Tente novamente.', 'error');
+    }
+  }
+
+  async function saveUserToFirestore(user) {
+    try {
+      const ref = doc(db, 'users', user.uid);
+      await setDoc(ref, {
+        name: user.displayName,
+        email: user.email,
+        photo: user.photoURL,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch(e) { console.warn('Firestore user save:', e); }
+  }
+
+  async function doSignOut() {
+    await signOut(auth);
+    state.user = null;
+    state.accessToken = null;
+    state.appointments = [];
+    showNav(false);
+    showScreen('login');
+    showToast('Até logo! 👋', 'info');
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      state.user = user;
+      updateUserAvatars();
+      await loadAppointmentsFromFirestore();
+      showScreen('home');
+      showNav(true);
+    } else {
+      showScreen('login');
+      showNav(false);
+    }
+  });
+
+  // ============================================================
+  // GOOGLE CALENDAR API
+  // ============================================================
+  async function syncCalendar() {
+    if (!state.accessToken) {
+      showToast('Faça login novamente para sincronizar.', 'error');
+      return;
+    }
+    if (state.syncing) return;
+    state.syncing = true;
+    setSyncSpinner(true);
+    showToast('Sincronizando agenda...', 'info');
+
+    try {
+      const { start, end } = getImportDateRange();
+      const timeMin = start.toISOString();
+      const timeMax = end.toISOString();
+
+      const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&orderBy=startTime&maxResults=500`;
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${state.accessToken}` }
+      });
+
+      if (res.status === 401) {
+        showToast('Sessão expirada. Faça login novamente.', 'error');
+        state.syncing = false;
+        setSyncSpinner(false);
+        return;
+      }
+
+      const data = await res.json();
+      if (!data.items) {
+        showToast('Nenhum evento encontrado no período.', 'info');
+        state.syncing = false;
+        setSyncSpinner(false);
+        return;
+      }
+
+      // Parse events
+      const imported = [];
+      for (const ev of data.items) {
+        if (ev.status === 'cancelled') continue;
+        const startStr = ev.start?.dateTime || ev.start?.date;
+        if (!startStr) continue;
+
+        const startDt = new Date(startStr);
+        const desc = ev.description || '';
+        const title = ev.summary || 'Atendimento';
+        const value = extractValueFromDescription(desc);
+
+        const docId = `cal_${ev.id}`;
+        const appt = {
+          id: docId,
+          calendarEventId: ev.id,
+          title,
+          date: toDateKey(startDt),
+          time: startDt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          value,
+          description: desc,
+          status: 'open', // open | paid | owed
+          importedAt: new Date().toISOString(),
+          userId: state.user.uid,
+        };
+        imported.push(appt);
+
+        // Save to Firestore, preserving existing status
+        const existing = state.appointments.find(a => a.calendarEventId === ev.id);
+        if (existing) appt.status = existing.status;
+
+        try {
+          await setDoc(doc(db, 'appointments', docId), appt, { merge: true });
+        } catch(e) { console.warn('Save appt:', e); }
+      }
+
+      // Refresh from Firestore
+      await loadAppointmentsFromFirestore();
+      showToast(`${imported.length} atendimentos sincronizados! 🎉`, 'success');
+    } catch(e) {
+      console.error(e);
+      showToast('Erro ao sincronizar. Verifique a conexão.', 'error');
+    } finally {
+      state.syncing = false;
+      setSyncSpinner(false);
+      renderCurrentScreen();
+    }
+  }
+
+  function getImportDateRange() {
+    const now = new Date();
+    let start, end;
+    if (state.importPeriod === 'current') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    } else if (state.importPeriod === 'last') {
+      start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    } else if (state.importPeriod === 'last2') {
+      start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    } else if (state.importPeriod === 'custom' && state.customStart && state.customEnd) {
+      start = new Date(state.customStart);
+      end = new Date(state.customEnd);
+      end.setHours(23, 59, 59);
+    } else {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    }
+    return { start, end };
+  }
+
+  function setSyncSpinner(on) {
+    document.querySelectorAll('.sync-btn').forEach(b => {
+      b.classList.toggle('spinning', on);
+    });
+  }
+
+  // ============================================================
+  // FIRESTORE APPOINTMENTS
+  // ============================================================
+  async function loadAppointmentsFromFirestore() {
+    if (!state.user) return;
+    try {
+      const q = query(collection(db, 'appointments'), where('userId', '==', state.user.uid));
+      const snap = await getDocs(q);
+      state.appointments = [];
+      snap.forEach(d => state.appointments.push({ id: d.id, ...d.data() }));
+      state.appointments.sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        return (a.time || '').localeCompare(b.time || '');
+      });
+    } catch(e) {
+      console.warn('Load appointments:', e);
+    }
+  }
+
+  async function updateAppointmentStatus(id, status) {
+    try {
+      await updateDoc(doc(db, 'appointments', id), { status });
+      const appt = state.appointments.find(a => a.id === id);
+      if (appt) appt.status = status;
+      renderCurrentScreen();
+      showToast(statusLabel(status) + ' ✓', 'success');
+    } catch(e) {
+      showToast('Erro ao atualizar status.', 'error');
+    }
+  }
+
+  async function updateAppointmentValue(id, value) {
+    try {
+      await updateDoc(doc(db, 'appointments', id), { value: parseFloat(value) || 0 });
+      const appt = state.appointments.find(a => a.id === id);
+      if (appt) appt.value = parseFloat(value) || 0;
+      renderCurrentScreen();
+      showToast('Valor atualizado ✓', 'success');
+    } catch(e) {
+      showToast('Erro ao atualizar valor.', 'error');
+    }
+  }
+
+  function statusLabel(s) {
+    return s === 'paid' ? 'Pago' : s === 'owed' ? 'Fiado' : 'Em aberto';
+  }
+  function statusIcon(s) {
+    return s === 'paid' ? '✓' : s === 'owed' ? '↩' : '○';
+  }
+  function statusClass(s) {
+    return s === 'paid' ? 'paid' : s === 'owed' ? 'owed' : 'open';
+  }
+
+  // ============================================================
+  // APPOINTMENT QUERIES
+  // ============================================================
+  function getAppointmentsForDate(d) {
+    const key = toDateKey(d);
+    return state.appointments.filter(a => a.date === key);
+  }
+
+  function getAppointmentsForMonth(year, month) {
+    const prefix = `${year}-${String(month+1).padStart(2,'0')}`;
+    return state.appointments.filter(a => a.date.startsWith(prefix));
+  }
+
+  function getAppointmentsForRange(start, end) {
+    const s = toDateKey(start);
+    const e = toDateKey(end);
+    return state.appointments.filter(a => a.date >= s && a.date <= e);
+  }
+
+  function totalValue(appts) {
+    return appts.reduce((s, a) => s + (a.value || 0), 0);
+  }
+
+  function renderCurrentScreen() {
+    if (state.currentScreen === 'home') renderHome();
+    else if (state.currentScreen === 'agenda') renderAgenda();
+    else if (state.currentScreen === 'finances') renderFinances();
+  }
+
+  // ============================================================
+  // HOME SCREEN
+  // ============================================================
+  function renderHome() {
+    const today = new Date();
+    const todayAppts = getAppointmentsForDate(today);
+    const todayTotal = totalValue(todayAppts);
+
+    // Update header
+    const hdr = document.getElementById('home-month-label');
+    if (hdr) hdr.textContent = today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+    // Stats cards
+    const statsEl = document.getElementById('home-stats');
+    if (statsEl) {
+      statsEl.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-icon">✂</div>
+          <div class="stat-number">${todayAppts.length}</div>
+          <div class="stat-label">Atendimentos</div>
+        </div>
+        <div class="stat-card highlight">
+          <div class="stat-icon">R$</div>
+          <div class="stat-number">${formatCurrency(todayTotal)}</div>
+          <div class="stat-label">Faturado hoje</div>
+        </div>
+      `;
+    }
+
+    // Week strip
+    renderWeekStrip();
+
+    // Appointments list for selected day
+    renderDayList(state.selectedDate, 'home-appt-list');
+
+    // Chart
+    renderWeekChart();
+  }
+
+  function renderWeekStrip() {
+    const strip = document.getElementById('week-strip');
+    if (!strip) return;
+    const today = new Date();
+    // Show 7 days centered on today (or selectedDate)
+    const days = [];
+    for (let i = -3; i <= 3; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      days.push(d);
+    }
+
+    strip.innerHTML = days.map(d => {
+      const key = toDateKey(d);
+      const appts = state.appointments.filter(a => a.date === key);
+      const isToday = isSameDay(d, today);
+      const isSelected = isSameDay(d, state.selectedDate);
+      const dayName = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.','');
+      return `
+        <button class="day-chip ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}"
+          onclick="selectDay('${key}')">
+          <span class="day-chip-name">${dayName}</span>
+          <span class="day-chip-num">${d.getDate()}</span>
+          ${appts.length ? `<span class="day-chip-dot"></span>` : ''}
+        </button>
+      `;
+    }).join('');
+  }
+
+  window.selectDay = function(key) {
+    state.selectedDate = new Date(key + 'T12:00:00');
+    renderWeekStrip();
+    renderDayList(state.selectedDate, 'home-appt-list');
+  };
+
+  function renderDayList(date, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const appts = getAppointmentsForDate(date);
+    const isToday = isSameDay(date, new Date());
+    const label = isToday ? 'Hoje' : formatDate(date);
+
+    if (!appts.length) {
+      container.innerHTML = `
+        <div class="day-list-header">
+          <span class="day-list-date">${label}</span>
+        </div>
+        <div class="empty-state">
+          <div class="empty-icon">✨</div>
+          <p>Nenhum atendimento</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="day-list-header">
+        <span class="day-list-date">${label}</span>
+        <span class="day-list-total">${formatCurrency(totalValue(appts))}</span>
+      </div>
+      ${appts.map(a => apptCard(a)).join('')}
+    `;
+  }
+
+  function apptCard(a) {
+    return `
+      <div class="appt-card status-${statusClass(a.status)}" id="appt-${a.id}">
+        <div class="appt-left">
+          <div class="appt-time">${a.time || '—'}</div>
+          <div class="appt-name">${a.title}</div>
+        </div>
+        <div class="appt-right">
+          <div class="appt-value">${formatCurrency(a.value)}</div>
+          <div class="appt-status-badge status-${statusClass(a.status)}">${statusIcon(a.status)} ${statusLabel(a.status)}</div>
+        </div>
+        <button class="appt-edit-btn" onclick="openEditModal('${a.id}')">⋯</button>
+      </div>
+    `;
+  }
+
+  function renderWeekChart() {
+    const canvas = document.getElementById('week-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const today = new Date();
+    const days = [];
+    const values = [];
+    const labels = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      days.push(d);
+      const appts = getAppointmentsForDate(d);
+      values.push(totalValue(appts));
+      labels.push(d.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0,3));
+    }
+
+    const W = canvas.offsetWidth || 340;
+    const H = canvas.offsetHeight || 120;
+    canvas.width = W;
+    canvas.height = H;
+    ctx.clearRect(0, 0, W, H);
+
+    const max = Math.max(...values, 1);
+    const pad = { top: 16, right: 16, bottom: 28, left: 8 };
+    const chartW = W - pad.left - pad.right;
+    const chartH = H - pad.top - pad.bottom;
+
+    const pts = values.map((v, i) => ({
+      x: pad.left + (i / (values.length - 1)) * chartW,
+      y: pad.top + chartH - (v / max) * chartH,
+    }));
+
+    // Gradient fill
+    const grad = ctx.createLinearGradient(0, pad.top, 0, H - pad.bottom);
+    grad.addColorStop(0, 'rgba(201,89,122,0.28)');
+    grad.addColorStop(1, 'rgba(201,89,122,0)');
+
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      const cp1x = (pts[i-1].x + pts[i].x) / 2;
+      ctx.bezierCurveTo(cp1x, pts[i-1].y, cp1x, pts[i].y, pts[i].x, pts[i].y);
+    }
+    ctx.lineTo(pts[pts.length-1].x, H - pad.bottom);
+    ctx.lineTo(pts[0].x, H - pad.bottom);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Line
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      const cp1x = (pts[i-1].x + pts[i].x) / 2;
+      ctx.bezierCurveTo(cp1x, pts[i-1].y, cp1x, pts[i].y, pts[i].x, pts[i].y);
+    }
+    ctx.strokeStyle = '#C9597A';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Dots
+    pts.forEach((p, i) => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = isSameDay(days[i], today) ? '#C9597A' : '#fff';
+      ctx.strokeStyle = '#C9597A';
+      ctx.lineWidth = 2;
+      ctx.fill();
+      ctx.stroke();
+    });
+
+    // Labels
+    ctx.fillStyle = '#9B8FA0';
+    ctx.font = '10px DM Sans, sans-serif';
+    ctx.textAlign = 'center';
+    labels.forEach((l, i) => {
+      ctx.fillText(l, pts[i].x, H - 6);
+    });
+  }
+
+  // ============================================================
+  // AGENDA SCREEN
+  // ============================================================
+  function renderAgenda() {
+    const year = state.calendarViewDate.getFullYear();
+    const month = state.calendarViewDate.getMonth();
+
+    const hdr = document.getElementById('agenda-month-label');
+    if (hdr) hdr.textContent = state.calendarViewDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+    renderCalendarGrid(year, month);
+    renderDayList(state.selectedDate, 'agenda-appt-list');
+  }
+
+  function renderCalendarGrid(year, month) {
+    const grid = document.getElementById('calendar-grid');
+    if (!grid) return;
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+
+    // Days with appointments
+    const apptDays = new Set(
+      state.appointments
+        .filter(a => a.date.startsWith(`${year}-${String(month+1).padStart(2,'0')}`))
+        .map(a => parseInt(a.date.split('-')[2]))
+    );
+
+    const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    let html = `<div class="cal-header">${weekDays.map(d => `<span>${d}</span>`).join('')}</div><div class="cal-body">`;
+
+    // Empty cells before first day
+    for (let i = 0; i < firstDay; i++) html += `<span class="cal-cell empty"></span>`;
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month, d);
+      const isToday = isSameDay(date, today);
+      const isSelected = isSameDay(date, state.selectedDate);
+      const hasAppt = apptDays.has(d);
+      const key = toDateKey(date);
+      html += `
+        <button class="cal-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}"
+          onclick="selectCalDay('${key}')">
+          ${d}
+          ${hasAppt ? '<span class="cal-dot"></span>' : ''}
+        </button>
+      `;
+    }
+
+    html += '</div>';
+    grid.innerHTML = html;
+  }
+
+  window.selectCalDay = function(key) {
+    state.selectedDate = new Date(key + 'T12:00:00');
+    renderAgenda();
+  };
+
+  window.prevMonth = function() {
+    state.calendarViewDate = new Date(state.calendarViewDate.getFullYear(), state.calendarViewDate.getMonth() - 1, 1);
+    renderAgenda();
+  };
+
+  window.nextMonth = function() {
+    state.calendarViewDate = new Date(state.calendarViewDate.getFullYear(), state.calendarViewDate.getMonth() + 1, 1);
+    renderAgenda();
+  };
+
+  // ============================================================
+  // FINANCES SCREEN
+  // ============================================================
+  function renderFinances() {
+    const year = state.financesViewDate.getFullYear();
+    const month = state.financesViewDate.getMonth();
+    const today = new Date();
+
+    const hdr = document.getElementById('finances-month-label');
+    if (hdr) hdr.textContent = state.financesViewDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+    const monthAppts = getAppointmentsForMonth(year, month);
+
+    // Up to today
+    const startOfMonth = new Date(year, month, 1);
+    const endOfToday = new Date(today);
+    endOfToday.setHours(23, 59, 59);
+    const past = monthAppts.filter(a => new Date(a.date + 'T23:59:59') <= endOfToday);
+    const future = monthAppts.filter(a => new Date(a.date + 'T00:00:00') > endOfToday);
+
+    const paidTotal = monthAppts.filter(a => a.status === 'paid').reduce((s, a) => s + (a.value||0), 0);
+    const openTotal = monthAppts.filter(a => a.status === 'open').reduce((s, a) => s + (a.value||0), 0);
+    const owedTotal = monthAppts.filter(a => a.status === 'owed').reduce((s, a) => s + (a.value||0), 0);
+    const totalMonth = totalValue(monthAppts);
+    const totalFuture = totalValue(future);
+
+    const card = document.getElementById('finances-card');
+    if (card) {
+      card.innerHTML = `
+        <div class="fin-main-card">
+          <div class="fin-card-label">Faturamento do mês</div>
+          <div class="fin-card-value">${formatCurrency(totalMonth)}</div>
+          <div class="fin-card-sub">Previsão: ${formatCurrency(totalMonth + totalFuture)}</div>
+        </div>
+        <div class="fin-stats-row">
+          <div class="fin-stat-item paid">
+            <div class="fin-stat-icon">✓</div>
+            <div class="fin-stat-val">${formatCurrency(paidTotal)}</div>
+            <div class="fin-stat-lbl">Recebido</div>
+          </div>
+          <div class="fin-stat-item open">
+            <div class="fin-stat-icon">○</div>
+            <div class="fin-stat-val">${formatCurrency(openTotal)}</div>
+            <div class="fin-stat-lbl">Em aberto</div>
+          </div>
+          <div class="fin-stat-item owed">
+            <div class="fin-stat-icon">↩</div>
+            <div class="fin-stat-val">${formatCurrency(owedTotal)}</div>
+            <div class="fin-stat-lbl">Fiado</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Pie chart
+    renderPieChart(paidTotal, openTotal, owedTotal);
+
+    // Month line chart
+    renderMonthChart(year, month, monthAppts);
+
+    // Appointment list
+    renderFinancesList(monthAppts);
+  }
+
+  function renderPieChart(paid, open, owed) {
+    const canvas = document.getElementById('pie-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.offsetWidth || 200;
+    const H = canvas.offsetHeight || 200;
+    canvas.width = W;
+    canvas.height = H;
+    ctx.clearRect(0, 0, W, H);
+
+    const total = paid + open + owed;
+    if (!total) {
+      ctx.fillStyle = '#F0EBF0';
+      ctx.beginPath();
+      ctx.arc(W/2, H/2, W/2 - 20, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    const slices = [
+      { val: paid, color: '#6DBE8C' },
+      { val: open, color: '#F2A65A' },
+      { val: owed, color: '#E07D9A' },
+    ];
+    let angle = -Math.PI / 2;
+    slices.forEach(s => {
+      if (!s.val) return;
+      const sweep = (s.val / total) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(W/2, H/2);
+      ctx.arc(W/2, H/2, W/2 - 16, angle, angle + sweep);
+      ctx.closePath();
+      ctx.fillStyle = s.color;
+      ctx.fill();
+      angle += sweep;
+    });
+
+    // Inner circle (donut)
+    ctx.beginPath();
+    ctx.arc(W/2, H/2, W/2 - 48, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+  }
+
+  function renderMonthChart(year, month, appts) {
+    const canvas = document.getElementById('month-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.offsetWidth || 340;
+    const H = canvas.offsetHeight || 100;
+    canvas.width = W;
+    canvas.height = H;
+    ctx.clearRect(0, 0, W, H);
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const byDay = {};
+    appts.forEach(a => {
+      const d = parseInt(a.date.split('-')[2]);
+      byDay[d] = (byDay[d] || 0) + (a.value || 0);
+    });
+
+    const values = Array.from({ length: daysInMonth }, (_, i) => byDay[i+1] || 0);
+    const max = Math.max(...values, 1);
+    const pad = { top: 12, right: 12, bottom: 20, left: 8 };
+    const chartW = W - pad.left - pad.right;
+    const chartH = H - pad.top - pad.bottom;
+
+    const pts = values.map((v, i) => ({
+      x: pad.left + (i / (values.length - 1)) * chartW,
+      y: pad.top + chartH - (v / max) * chartH,
+    }));
+
+    const grad = ctx.createLinearGradient(0, pad.top, 0, H);
+    grad.addColorStop(0, 'rgba(109,190,140,0.3)');
+    grad.addColorStop(1, 'rgba(109,190,140,0)');
+
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      const cpx = (pts[i-1].x + pts[i].x) / 2;
+      ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
+    }
+    ctx.lineTo(pts[pts.length-1].x, H - pad.bottom);
+    ctx.lineTo(pts[0].x, H - pad.bottom);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      const cpx = (pts[i-1].x + pts[i].x) / 2;
+      ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
+    }
+    ctx.strokeStyle = '#6DBE8C';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  function renderFinancesList(appts) {
+    const el = document.getElementById('finances-list');
+    if (!el) return;
+    const sorted = [...appts].sort((a, b) => b.date.localeCompare(a.date));
+    if (!sorted.length) {
+      el.innerHTML = `<div class="empty-state"><div class="empty-icon">💸</div><p>Sem atendimentos</p></div>`;
+      return;
+    }
+    el.innerHTML = sorted.map(a => `
+      <div class="appt-card status-${statusClass(a.status)}">
+        <div class="appt-left">
+          <div class="appt-time">${a.date.split('-').reverse().join('/')} ${a.time || ''}</div>
+          <div class="appt-name">${a.title}</div>
+        </div>
+        <div class="appt-right">
+          <div class="appt-value">${formatCurrency(a.value)}</div>
+          <div class="appt-status-badge status-${statusClass(a.status)}">${statusIcon(a.status)} ${statusLabel(a.status)}</div>
+        </div>
+        <button class="appt-edit-btn" onclick="openEditModal('${a.id}')">⋯</button>
+      </div>
+    `).join('');
+  }
+
+  window.prevFinMonth = function() {
+    state.financesViewDate = new Date(state.financesViewDate.getFullYear(), state.financesViewDate.getMonth() - 1, 1);
+    renderFinances();
+  };
+  window.nextFinMonth = function() {
+    state.financesViewDate = new Date(state.financesViewDate.getFullYear(), state.financesViewDate.getMonth() + 1, 1);
+    renderFinances();
+  };
+
+  // ============================================================
+  // EDIT MODAL
+  // ============================================================
+  window.openEditModal = function(id) {
+    const appt = state.appointments.find(a => a.id === id);
+    if (!appt) return;
+    state.editingAppointment = appt;
+
+    const modal = document.getElementById('edit-modal');
+    document.getElementById('edit-name').textContent = appt.title;
+    document.getElementById('edit-date').textContent = formatDate(new Date(appt.date + 'T12:00:00'));
+    document.getElementById('edit-value-input').value = appt.value || '';
+
+    document.querySelectorAll('.status-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.status === appt.status);
+    });
+
+    modal.classList.add('open');
+  };
+
+  window.closeEditModal = function() {
+    document.getElementById('edit-modal').classList.remove('open');
+    state.editingAppointment = null;
+  };
+
+  window.setStatus = function(status) {
+    if (!state.editingAppointment) return;
+    updateAppointmentStatus(state.editingAppointment.id, status);
+    document.querySelectorAll('.status-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.status === status);
+    });
+    state.editingAppointment.status = status;
+    // Update card
+    const card = document.getElementById(`appt-${state.editingAppointment.id}`);
+    if (card) {
+      card.className = `appt-card status-${statusClass(status)}`;
+      card.querySelector('.appt-status-badge').className = `appt-status-badge status-${statusClass(status)}`;
+      card.querySelector('.appt-status-badge').textContent = `${statusIcon(status)} ${statusLabel(status)}`;
+    }
+  };
+
+  window.saveValue = function() {
+    if (!state.editingAppointment) return;
+    const val = document.getElementById('edit-value-input').value;
+    updateAppointmentValue(state.editingAppointment.id, val);
+    closeEditModal();
+  };
+
+  // ============================================================
+  // IMPORT MODAL
+  // ============================================================
+  window.showImportModal = function() {
+    document.getElementById('import-modal').classList.add('open');
+  };
+
+  window.closeImportModal = function() {
+    document.getElementById('import-modal').classList.remove('open');
+  };
+
+  window.setPeriod = function(p) {
+    state.importPeriod = p;
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === p));
+    document.getElementById('custom-range').style.display = p === 'custom' ? 'flex' : 'none';
+  };
+
+  window.startSync = function() {
+    const cs = document.getElementById('custom-start').value;
+    const ce = document.getElementById('custom-end').value;
+    if (state.importPeriod === 'custom') {
+      if (!cs || !ce) { showToast('Selecione as datas.', 'error'); return; }
+      state.customStart = cs;
+      state.customEnd = ce;
+    }
+    closeImportModal();
+    syncCalendar();
+  };
+
+  // ============================================================
+  // UI HELPERS
+  // ============================================================
+  function showNav(show) {
+    const nav = document.getElementById('bottom-nav');
+    if (nav) nav.style.display = show ? 'flex' : 'none';
+    const syncBar = document.getElementById('sync-bar');
+    if (syncBar) syncBar.style.display = show ? 'flex' : 'none';
+  }
+
+  function updateUserAvatars() {
+    if (!state.user) return;
+    const photo = state.user.photoURL || '';
+    const name = state.user.displayName || '';
+    document.querySelectorAll('.user-avatar').forEach(el => {
+      if (photo) {
+        el.style.backgroundImage = `url(${photo})`;
+        el.textContent = '';
+      } else {
+        el.textContent = name.charAt(0).toUpperCase();
+      }
+    });
+    const nameEl = document.getElementById('user-name');
+    if (nameEl) nameEl.textContent = name;
+  }
+
+  // Expose globals
+  window.loginWithGoogle = loginWithGoogle;
+  window.doSignOut = doSignOut;
+  window.syncCalendar = syncCalendar;
+  window.showImportModal = showImportModal;
+  window.showScreen = showScreen;
+</script>
+
+<style>
+/* ============================================================
+   CSS VARIABLES & RESET
+============================================================ */
+:root {
+  --pink: #C9597A;
+  --pink-light: #F2D4DC;
+  --pink-dark: #A83D5E;
+  --rose: #E07D9A;
+  --green: #6DBE8C;
+  --orange: #F2A65A;
+  --purple: #8B6B9E;
+  --bg: #FAF7F9;
+  --card: #FFFFFF;
+  --text: #2D1B2E;
+  --text2: #7A6280;
+  --text3: #B8A8BE;
+  --border: #EDE4ED;
+  --shadow: 0 2px 16px rgba(45,27,46,0.08);
+  --shadow-lg: 0 8px 32px rgba(45,27,46,0.14);
+  --radius: 20px;
+  --radius-sm: 12px;
+  --nav-h: 72px;
+  --sync-h: 0px;
+  --font: 'DM Sans', sans-serif;
+  --font-display: 'Fraunces', serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+button { font-family: var(--font); cursor: pointer; border: none; background: none; }
+input { font-family: var(--font); }
+
+/* ============================================================
+   SCREEN SYSTEM
+============================================================ */
+.screen {
+  position: fixed;
+  inset: 0;
+  bottom: calc(var(--nav-h) + var(--sync-h));
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 20px;
+}
+
+.screen.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+@keyframes screenIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   LOGIN SCREEN
+============================================================ */
+#screen-login {
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 28px;
+  background: linear-gradient(160deg, #FFF0F4 0%, #FAF7F9 50%, #F0EBF5 100%);
+}
+
+.login-logo {
+  width: 88px;
+  height: 88px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, var(--pink) 0%, var(--purple) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-lg);
+}
+
+.login-title {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.5px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.login-subtitle {
+  font-size: 15px;
+  color: var(--text2);
+  text-align: center;
+  margin-bottom: 48px;
+  line-height: 1.5;
+}
+
+.login-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 16px 28px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 320px;
+  justify-content: center;
+  border: 1.5px solid var(--border);
+  transition: transform 0.15s, box-shadow 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.login-btn:active { transform: scale(0.97); box-shadow: none; }
+
+.login-btn svg { width: 22px; height: 22px; }
+
+.login-features {
+  margin-top: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.login-feature {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+  color: var(--text2);
+}
+
+.login-feature-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--pink-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   SYNC BAR
+============================================================ */
+#sync-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  background: white;
+  border-bottom: 1px solid var(--border);
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  z-index: 100;
+  box-shadow: 0 1px 8px rgba(45,27,46,0.06);
+}
+
+#sync-bar .app-brand {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+#sync-bar .brand-dot {
+  color: var(--pink);
+}
+
+.sync-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--pink-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--pink);
+  transition: transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sync-btn.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.sync-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--pink) center/cover no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  cursor: pointer;
+  border: 2px solid var(--pink-light);
+}
+
+/* ============================================================
+   BOTTOM NAV
+============================================================ */
+#bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-h);
+  background: white;
+  display: none;
+  align-items: center;
+  justify-content: space-around;
+  border-top: 1px solid var(--border);
+  z-index: 100;
+  padding: 0 8px;
+  box-shadow: 0 -2px 16px rgba(45,27,46,0.07);
+}
+
+.nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  color: var(--text3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  transition: color 0.2s, background 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 72px;
+}
+
+.nav-btn.active { color: var(--pink); }
+.nav-btn.active .nav-icon { background: var(--pink-light); }
+
+.nav-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: background 0.2s;
+}
+
+.nav-center .user-avatar {
+  width: 40px;
+  height: 40px;
+  border: 2.5px solid var(--pink);
+  box-shadow: 0 0 0 3px var(--pink-light);
+  font-size: 15px;
+}
+
+/* Screens need top padding for sync bar */
+.screen.active { top: 52px; }
+#screen-login.active { top: 0; }
+
+/* ============================================================
+   SHARED COMPONENTS
+============================================================ */
+.screen-header {
+  padding: 20px 20px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.screen-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.month-nav button {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--border);
+  color: var(--text2);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.month-nav button:active { background: var(--pink-light); color: var(--pink); }
+
+/* ============================================================
+   STAT CARDS
+============================================================ */
+.stats-row {
+  display: flex;
+  gap: 12px;
+  padding: 4px 20px 16px;
+}
+
+.stat-card {
+  flex: 1;
+  background: white;
+  border-radius: var(--radius);
+  padding: 16px 14px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1.5px solid var(--border);
+}
+
+.stat-card.highlight {
+  background: linear-gradient(135deg, var(--pink) 0%, var(--pink-dark) 100%);
+  border-color: transparent;
+}
+
+.stat-card.highlight .stat-number,
+.stat-card.highlight .stat-label,
+.stat-card.highlight .stat-icon {
+  color: white;
+}
+
+.stat-icon { font-size: 13px; color: var(--text3); font-weight: 700; }
+.stat-number { font-size: 18px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.stat-label { font-size: 11px; color: var(--text2); font-weight: 500; }
+
+/* ============================================================
+   WEEK STRIP
+============================================================ */
+.week-strip-wrap {
+  padding: 0 20px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.week-strip-wrap::-webkit-scrollbar { display: none; }
+
+#week-strip {
+  display: flex;
+  gap: 8px;
+  width: max-content;
+}
+
+.day-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: white;
+  border: 1.5px solid var(--border);
+  min-width: 56px;
+  transition: all 0.2s;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.day-chip.selected {
+  background: var(--pink);
+  border-color: var(--pink);
+}
+
+.day-chip.today:not(.selected) {
+  border-color: var(--pink);
+  background: var(--pink-light);
+}
+
+.day-chip-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.day-chip.selected .day-chip-name,
+.day-chip.selected .day-chip-num {
+  color: white;
+}
+
+.day-chip.today:not(.selected) .day-chip-name,
+.day-chip.today:not(.selected) .day-chip-num {
+  color: var(--pink);
+}
+
+.day-chip-num {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.day-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pink);
+}
+
+.day-chip.selected .day-chip-dot {
+  background: rgba(255,255,255,0.7);
+}
+
+/* ============================================================
+   APPOINTMENT CARDS
+============================================================ */
+.day-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 8px;
+}
+
+.day-list-date {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.day-list-total {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--pink);
+}
+
+.appt-list {
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.appt-card {
+  background: white;
+  border-radius: var(--radius);
+  padding: 14px 14px 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow);
+  border-left: 4px solid var(--border);
+  border-top: 1.5px solid var(--border);
+  border-right: 1.5px solid var(--border);
+  border-bottom: 1.5px solid var(--border);
+  position: relative;
+  transition: transform 0.15s;
+}
+
+.appt-card:active { transform: scale(0.98); }
+
+.appt-card.status-paid { border-left-color: var(--green); }
+.appt-card.status-owed { border-left-color: var(--orange); }
+.appt-card.status-open { border-left-color: var(--text3); }
+
+.appt-left { flex: 1; min-width: 0; }
+.appt-time { font-size: 11px; color: var(--text2); font-weight: 600; margin-bottom: 2px; }
+.appt-name { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.appt-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.appt-value { font-size: 14px; font-weight: 700; color: var(--text); }
+
+.appt-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.2px;
+}
+
+.appt-status-badge.status-paid { background: #E8F7EE; color: #3A8A5A; }
+.appt-status-badge.status-owed { background: #FEF3E7; color: #C4700F; }
+.appt-status-badge.status-open { background: var(--border); color: var(--text2); }
+
+.appt-edit-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--text3);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.appt-edit-btn:active { background: var(--pink-light); color: var(--pink); }
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text3);
+}
+.empty-icon { font-size: 36px; margin-bottom: 10px; }
+.empty-state p { font-size: 14px; font-weight: 500; }
+
+/* ============================================================
+   WEEK CHART
+============================================================ */
+.chart-section {
+  padding: 16px 20px 8px;
+}
+
+.chart-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text2);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.chart-card {
+  background: white;
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  border: 1.5px solid var(--border);
+}
+
+#week-chart, #month-chart {
+  width: 100%;
+  height: 120px;
+  display: block;
+}
+
+/* ============================================================
+   CALENDAR SCREEN
+============================================================ */
+.cal-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 20px;
+  margin-bottom: 8px;
+}
+
+.cal-header span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 6px 0;
+}
+
+.cal-body {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 12px;
+  gap: 4px;
+}
+
+.cal-cell {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text2);
+  position: relative;
+  transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  gap: 2px;
+}
+
+.cal-cell.empty { background: none; }
+.cal-cell:not(.empty):hover { background: var(--border); }
+.cal-cell.today { font-weight: 800; color: var(--pink); background: var(--pink-light); }
+.cal-cell.selected { background: var(--pink); color: white; }
+.cal-cell.selected .cal-dot { background: white; }
+
+.cal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--pink);
+}
+
+/* ============================================================
+   FINANCES SCREEN
+============================================================ */
+.fin-main-card {
+  margin: 0 20px 16px;
+  background: linear-gradient(135deg, var(--pink) 0%, var(--purple) 100%);
+  border-radius: var(--radius);
+  padding: 24px 20px;
+  color: white;
+  box-shadow: var(--shadow-lg);
+}
+
+.fin-card-label {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.fin-card-value {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-bottom: 6px;
+}
+
+.fin-card-sub {
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.fin-stats-row {
+  display: flex;
+  gap: 10px;
+  padding: 0 20px 16px;
+}
+
+.fin-stat-item {
+  flex: 1;
+  background: white;
+  border-radius: var(--radius-sm);
+  padding: 14px 10px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  border: 1.5px solid var(--border);
+}
+
+.fin-stat-icon { font-size: 16px; margin-bottom: 4px; }
+.fin-stat-val { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.fin-stat-lbl { font-size: 10px; color: var(--text2); font-weight: 600; }
+
+.fin-stat-item.paid .fin-stat-icon { color: var(--green); }
+.fin-stat-item.open .fin-stat-icon { color: var(--text3); }
+.fin-stat-item.owed .fin-stat-icon { color: var(--orange); }
+
+.chart-row {
+  display: flex;
+  gap: 12px;
+  padding: 0 20px 16px;
+  align-items: center;
+}
+
+#pie-chart {
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+}
+
+.chart-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text2);
+  font-weight: 500;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.section-title {
+  padding: 8px 20px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================================
+   MODALS
+============================================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(45,27,46,0.4);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+  backdrop-filter: blur(4px);
+}
+
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.modal-sheet {
+  width: 100%;
+  background: white;
+  border-radius: 24px 24px 0 0;
+  padding: 24px 24px 40px;
+  transform: translateY(40px);
+  transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+}
+
+.modal-overlay.open .modal-sheet {
+  transform: translateY(0);
+}
+
+.modal-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto 24px;
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.modal-sub {
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 20px;
+}
+
+.modal-close {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--border);
+  color: var(--text2);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Edit Modal */
+.edit-appt-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.edit-appt-date {
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 20px;
+}
+
+.modal-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.status-btns {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.status-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text2);
+  transition: all 0.2s;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.status-btn[data-status="paid"].active { background: #E8F7EE; border-color: var(--green); color: #3A8A5A; }
+.status-btn[data-status="open"].active { background: var(--border); border-color: var(--text3); color: var(--text); }
+.status-btn[data-status="owed"].active { background: #FEF3E7; border-color: var(--orange); color: #C4700F; }
+
+.value-input-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.value-input {
+  flex: 1;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+  padding: 0 16px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.value-input:focus { border-color: var(--pink); }
+
+.btn-primary {
+  width: 100%;
+  height: 52px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--pink), var(--pink-dark));
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(201,89,122,0.35);
+  transition: transform 0.15s, box-shadow 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-primary:active { transform: scale(0.97); box-shadow: 0 2px 8px rgba(201,89,122,0.2); }
+
+.btn-secondary {
+  width: 100%;
+  height: 48px;
+  border-radius: var(--radius);
+  background: var(--border);
+  color: var(--text2);
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Import Modal */
+.period-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.period-btn {
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text2);
+  text-align: left;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.period-btn.active {
+  background: var(--pink-light);
+  border-color: var(--pink);
+  color: var(--pink);
+}
+
+#custom-range {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.date-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.date-input-row input {
+  flex: 1;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+  padding: 0 12px;
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+}
+
+.date-input-row input:focus { border-color: var(--pink); }
+
+/* ============================================================
+   TOAST
+============================================================ */
+#toast {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-80px);
+  background: var(--text);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 500;
+  white-space: nowrap;
+  transition: transform 0.35s cubic-bezier(.4,0,.2,1);
+  box-shadow: var(--shadow-lg);
+  max-width: 90vw;
+  text-align: center;
+}
+
+#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.toast-success { background: #2D6A4F; }
+#toast.toast-error { background: #A93226; }
+#toast.toast-info { background: var(--purple); }
+
+/* ============================================================
+   SECTION DIVIDERS
+============================================================ */
+.section-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 20px;
+}
+
+.open-agenda-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 20px;
+  height: 46px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+  color: var(--pink);
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--pink-light);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.open-agenda-btn:active { opacity: 0.8; }
+
+/* ============================================================
+   HEADER USER DROPDOWN
+============================================================ */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.signout-btn {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  padding: 6px 10px;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.signout-btn:active { background: var(--border); }
+
+/* ============================================================
+   SCROLLABLE SECTIONS
+============================================================ */
+.scroll-section {
+  overflow-y: auto;
+  max-height: 50vh;
+  -webkit-overflow-scrolling: touch;
+}
+
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     SYNC BAR (Top, always visible when logged in)
+============================================================ -->
+<div id="sync-bar" style="display:none">
+  <div class="app-brand">Glam<span class="brand-dot">✦</span>Studio</div>
+  <div class="sync-actions">
+    <button class="sync-btn" onclick="syncCalendar()" title="Sincronizar">↻</button>
+    <button class="signout-btn" onclick="doSignOut()">Sair</button>
+    <div class="user-avatar" id="nav-avatar" onclick="showImportModal()"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     BOTTOM NAV
+============================================================ -->
+<nav id="bottom-nav" style="display:none">
+  <button class="nav-btn" data-screen="home" onclick="showScreen('home')">
+    <span class="nav-icon">⌂</span>
+    <span>Home</span>
+  </button>
+  <button class="nav-btn" data-screen="agenda" onclick="showScreen('agenda')">
+    <span class="nav-icon">📅</span>
+    <span>Agenda</span>
+  </button>
+  <div class="nav-center" style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+    <div class="user-avatar nav-center" id="nav-avatar-center" onclick="showImportModal()" style="width:40px;height:40px;border:2.5px solid #C9597A;box-shadow:0 0 0 3px #F2D4DC;font-size:15px;cursor:pointer;background:#C9597A center/cover no-repeat;"></div>
+  </div>
+  <button class="nav-btn" data-screen="finances" onclick="showScreen('finances')">
+    <span class="nav-icon">💰</span>
+    <span>Finanças</span>
+  </button>
+  <button class="nav-btn" onclick="doSignOut()">
+    <span class="nav-icon">⇥</span>
+    <span>Sair</span>
+  </button>
+</nav>
+
+<!-- ============================================================
+     TOAST
+============================================================ -->
+<div id="toast"></div>
+
+<!-- ============================================================
+     LOGIN SCREEN
+============================================================ -->
+<div class="screen active" id="screen-login">
+  <div class="login-logo">✂</div>
+  <div class="login-title">Glam Studio</div>
+  <div class="login-subtitle">Controle financeiro pensado<br>para cabeleireiras ✨</div>
+
+  <button class="login-btn" onclick="loginWithGoogle()">
+    <!-- Google SVG -->
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+    Entrar com Google
+  </button>
+
+  <div class="login-features">
+    <div class="login-feature">
+      <div class="login-feature-icon">📅</div>
+      <span>Importa automaticamente sua agenda do Google Calendar</span>
+    </div>
+    <div class="login-feature">
+      <div class="login-feature-icon">💰</div>
+      <span>Controla pagamentos, fiados e valores em aberto</span>
+    </div>
+    <div class="login-feature">
+      <div class="login-feature-icon">📊</div>
+      <span>Relatórios financeiros claros e simplificados</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     HOME SCREEN
+============================================================ -->
+<div class="screen" id="screen-home">
+  <div class="screen-header">
+    <div id="home-month-label" class="screen-title">Carregando...</div>
+    <button class="sync-btn" onclick="syncCalendar()">↻</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="home-stats">
+    <div class="stat-card">
+      <div class="stat-icon">✂</div>
+      <div class="stat-number">0</div>
+      <div class="stat-label">Atendimentos</div>
+    </div>
+    <div class="stat-card highlight">
+      <div class="stat-icon">R$</div>
+      <div class="stat-number">R$ 0,00</div>
+      <div class="stat-label">Faturado hoje</div>
+    </div>
+  </div>
+
+  <!-- Week strip -->
+  <div class="week-strip-wrap">
+    <div id="week-strip"></div>
+  </div>
+
+  <!-- Appointments for selected day -->
+  <div id="home-appt-list" class="appt-list" style="padding:0 20px; display:flex; flex-direction:column; gap:10px;"></div>
+
+  <button class="open-agenda-btn" onclick="showScreen('agenda')">
+    📅 Abrir Agenda Completa →
+  </button>
+
+  <!-- Week chart -->
+  <div class="chart-section">
+    <div class="chart-title">Faturamento — 7 dias</div>
+    <div class="chart-card">
+      <canvas id="week-chart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     AGENDA SCREEN
+============================================================ -->
+<div class="screen" id="screen-agenda">
+  <div class="screen-header">
+    <div class="month-nav">
+      <button onclick="prevMonth()">‹</button>
+      <span id="agenda-month-label" class="screen-title" style="font-size:18px; min-width:150px; text-align:center;"></span>
+      <button onclick="nextMonth()">›</button>
+    </div>
+    <button class="sync-btn" onclick="syncCalendar()">↻</button>
+  </div>
+
+  <!-- Calendar grid -->
+  <div id="calendar-grid" style="margin-bottom:8px;"></div>
+
+  <div class="section-divider"></div>
+
+  <!-- Day appointments -->
+  <div id="agenda-appt-list" style="padding:0 20px; display:flex; flex-direction:column; gap:10px;"></div>
+</div>
+
+<!-- ============================================================
+     FINANCES SCREEN
+============================================================ -->
+<div class="screen" id="screen-finances">
+  <div class="screen-header">
+    <div class="month-nav">
+      <button onclick="prevFinMonth()">‹</button>
+      <span id="finances-month-label" class="screen-title" style="font-size:18px; min-width:150px; text-align:center;"></span>
+      <button onclick="nextFinMonth()">›</button>
+    </div>
+    <button class="sync-btn" onclick="syncCalendar()">↻</button>
+  </div>
+
+  <div id="finances-card"></div>
+
+  <!-- Charts row -->
+  <div class="chart-row">
+    <canvas id="pie-chart" width="100" height="100"></canvas>
+    <div class="chart-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#6DBE8C"></div>Recebido</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#F2A65A"></div>Em aberto</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#E07D9A"></div>Fiado</div>
+    </div>
+  </div>
+
+  <!-- Month chart -->
+  <div class="chart-section" style="padding-top:0">
+    <div class="chart-title">Evolução do mês</div>
+    <div class="chart-card">
+      <canvas id="month-chart"></canvas>
+    </div>
+  </div>
+
+  <div class="section-title">Todos os Atendimentos</div>
+  <div id="finances-list" style="padding:0 20px; display:flex; flex-direction:column; gap:10px;"></div>
+  <div style="height:20px"></div>
+</div>
+
+<!-- ============================================================
+     EDIT MODAL
+============================================================ -->
+<div class="modal-overlay" id="edit-modal" onclick="if(event.target===this) closeEditModal()">
+  <div class="modal-sheet" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeEditModal()">✕</button>
+
+    <div class="edit-appt-name" id="edit-name"></div>
+    <div class="edit-appt-date" id="edit-date"></div>
+
+    <div class="modal-label">Status do pagamento</div>
+    <div class="status-btns">
+      <button class="status-btn" data-status="paid" onclick="setStatus('paid')">✓ Pago</button>
+      <button class="status-btn" data-status="open" onclick="setStatus('open')">○ Em aberto</button>
+      <button class="status-btn" data-status="owed" onclick="setStatus('owed')">↩ Fiado</button>
+    </div>
+
+    <div class="modal-label">Valor do atendimento</div>
+    <div class="value-input-row">
+      <input type="number" class="value-input" id="edit-value-input" placeholder="0.00" step="0.01" min="0">
+    </div>
+
+    <button class="btn-primary" onclick="saveValue()">Salvar alterações</button>
+    <button class="btn-secondary" onclick="closeEditModal()">Cancelar</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     IMPORT MODAL
+============================================================ -->
+<div class="modal-overlay" id="import-modal" onclick="if(event.target===this) closeImportModal()">
+  <div class="modal-sheet" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeImportModal()">✕</button>
+
+    <div class="modal-title">Sincronizar Agenda</div>
+    <div class="modal-sub">Escolha o período para importar do Google Calendar</div>
+
+    <div class="period-btns">
+      <button class="period-btn active" data-period="current" onclick="setPeriod('current')">
+        📅 Mês atual
+      </button>
+      <button class="period-btn" data-period="last" onclick="setPeriod('last')">
+        ← Último mês
+      </button>
+      <button class="period-btn" data-period="last2" onclick="setPeriod('last2')">
+        ← Últimos 2 meses
+      </button>
+      <button class="period-btn" data-period="custom" onclick="setPeriod('custom')">
+        🗓 Intervalo personalizado
+      </button>
+    </div>
+
+    <div id="custom-range">
+      <div class="modal-label">Período personalizado</div>
+      <div class="date-input-row">
+        <input type="date" id="custom-start" placeholder="Início">
+        <input type="date" id="custom-end" placeholder="Fim">
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="startSync()">↻ Sincronizar agora</button>
+    <button class="btn-secondary" onclick="closeImportModal()">Agora não</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     SERVICE WORKER REGISTRATION
+============================================================ -->
+<script>
+if ('serviceWorker' in navigator) {
+  // Inline SW as blob URL since we're in a single HTML file
+  const swCode = `
+    const CACHE = 'glamstudio-v1';
+    const OFFLINE_URLS = [self.location.href];
+
+    self.addEventListener('install', e => {
+      e.waitUntil(
+        caches.open(CACHE).then(c => c.addAll(OFFLINE_URLS)).catch(() => {})
+      );
+      self.skipWaiting();
+    });
+
+    self.addEventListener('activate', e => {
+      e.waitUntil(
+        caches.keys().then(keys =>
+          Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+        )
+      );
+      self.clients.claim();
+    });
+
+    self.addEventListener('fetch', e => {
+      if (e.request.method !== 'GET') return;
+      if (e.request.url.includes('googleapis.com') || e.request.url.includes('firestore')) return;
+      e.respondWith(
+        fetch(e.request)
+          .then(res => {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+            return res;
+          })
+          .catch(() => caches.match(e.request))
+      );
+    });
+  `;
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(() => {});
+}
+
+// PWA Install prompt
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // Could show install button here
+});
+
+// Update avatars when DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  // Set today defaults
+});
+</script>
+
+<!-- PWA Manifest inline -->
+<script>
+const manifestData = {
+  name: "Glam Studio — Controle Financeiro",
+  short_name: "Glam Studio",
+  description: "Controle financeiro para cabeleireiras",
+  start_url: "./",
+  display: "standalone",
+  background_color: "#FAF7F9",
+  theme_color: "#C9597A",
+  orientation: "portrait",
+  icons: [
+    { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23C9597A'/%3E%3Ctext y='130' x='96' text-anchor='middle' font-size='100'%3E✂%3C/text%3E%3C/svg%3E", sizes: "192x192", type: "image/svg+xml" },
+    { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23C9597A'/%3E%3Ctext y='360' x='256' text-anchor='middle' font-size='280'%3E✂%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }
+  ]
+};
+const manifestBlob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
+const manifestUrl = URL.createObjectURL(manifestBlob);
+const manifestLink = document.createElement('link');
+manifestLink.rel = 'manifest';
+manifestLink.href = manifestUrl;
+document.head.appendChild(manifestLink);
+</script>
+
+</body>
+</html>
