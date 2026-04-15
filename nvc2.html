@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#E91E8C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Glam Studio">
+<meta name="description" content="Controle financeiro para cabeleireiras">
+<title>Glam Studio — Controle Financeiro</title>
+
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc, deleteDoc }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+    authDomain: "glam-studio-8b65c.firebaseapp.com",
+    projectId: "glam-studio-8b65c",
+    storageBucket: "glam-studio-8b65c.firebasestorage.app",
+    messagingSenderId: "154294556895",
+    appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const googleProvider = new GoogleAuthProvider();
+  googleProvider.addScope('https://www.googleapis.com/auth/calendar.readonly');
+  googleProvider.addScope('https://www.googleapis.com/auth/calendar.events');
+
+  window._fb = { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged,
+    doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc, deleteDoc };
+</script>
+
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --pink: #E91E8C;
+  --pink-light: #F06CBB;
+  --pink-ultra-light: #FDE8F4;
+  --pink-gradient: linear-gradient(135deg, #E91E8C 0%, #C2185B 100%);
+  --purple: #9C27B0;
+  --purple-light: #CE93D8;
+  --white: #FFFFFF;
+  --off-white: #F9F5F7;
+  --gray-50: #FAF9FB;
+  --gray-100: #F3EFF5;
+  --gray-200: #E8E0ED;
+  --gray-300: #D1C4DA;
+  --gray-400: #A89BB5;
+  --gray-500: #7C6D88;
+  --gray-700: #4A3F54;
+  --gray-900: #1E1527;
+  --success: #4CAF50;
+  --warning: #FF9800;
+  --danger: #F44336;
+  --font: 'Nunito', sans-serif;
+  --font-display: 'Playfair Display', serif;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --shadow-sm: 0 2px 8px rgba(233,30,140,0.08);
+  --shadow-md: 0 4px 20px rgba(233,30,140,0.12);
+  --shadow-lg: 0 8px 40px rgba(233,30,140,0.18);
+  --nav-h: 72px;
+}
+html { font-size: 16px; }
+body {
+  font-family: var(--font);
+  background: var(--off-white);
+  color: var(--gray-900);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: var(--font); cursor: pointer; border: none; outline: none; }
+input, select, textarea { font-family: var(--font); outline: none; }
+
+/* ===== SCREENS ===== */
+.screen { display: none; min-height: 100vh; padding-bottom: calc(var(--nav-h) + 16px); }
+.screen.active { display: block; animation: fadeIn .25s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ===== LOGIN SCREEN ===== */
+#screen-login {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 32px 24px; padding-bottom: 32px;
+  background: var(--white);
+  position: relative; overflow: hidden;
+}
+#screen-login.active { display: flex; }
+.login-bg-blob {
+  position: absolute; border-radius: 50%; opacity: .08; pointer-events: none;
+}
+.login-bg-blob-1 { width: 320px; height: 320px; background: var(--pink); top: -100px; right: -80px; }
+.login-bg-blob-2 { width: 240px; height: 240px; background: var(--purple); bottom: -60px; left: -80px; }
+.login-logo {
+  width: 88px; height: 88px; background: var(--pink-gradient);
+  border-radius: 28px; display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-lg); margin-bottom: 28px; position: relative;
+}
+.login-logo svg { width: 44px; height: 44px; fill: white; }
+.login-title { font-family: var(--font-display); font-size: 2rem; color: var(--gray-900); text-align: center; line-height: 1.2; }
+.login-subtitle { font-size: .95rem; color: var(--gray-400); margin-top: 8px; text-align: center; line-height: 1.5; }
+.login-divider { width: 48px; height: 3px; background: var(--pink-gradient); border-radius: 99px; margin: 24px auto; }
+.login-feature-list { list-style: none; margin-bottom: 40px; display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 300px; }
+.login-feature-list li { display: flex; align-items: center; gap: 10px; font-size: .9rem; color: var(--gray-500); }
+.login-feature-list li span.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pink); flex-shrink: 0; }
+.btn-google {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  width: 100%; max-width: 300px; padding: 16px 24px;
+  background: var(--white); border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-md); font-size: 1rem; font-weight: 700; color: var(--gray-700);
+  box-shadow: var(--shadow-sm); transition: all .2s;
+}
+.btn-google:active { transform: scale(.97); box-shadow: none; }
+.btn-google img { width: 22px; height: 22px; }
+.login-terms { font-size: .78rem; color: var(--gray-400); text-align: center; margin-top: 16px; max-width: 280px; }
+
+/* ===== PERIOD SELECTOR ===== */
+#screen-period {
+  display: none; flex-direction: column; min-height: 100vh;
+  padding: 0; background: var(--white);
+}
+#screen-period.active { display: flex; }
+.period-header {
+  background: var(--pink-gradient); padding: 56px 24px 32px;
+  color: white;
+}
+.period-header h2 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
+.period-header p { font-size: .9rem; opacity: .85; }
+.period-body { padding: 24px; flex: 1; }
+.period-options { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.period-opt {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 18px; border-radius: var(--radius-md);
+  border: 1.5px solid var(--gray-200); background: var(--white);
+  font-size: .95rem; font-weight: 600; color: var(--gray-700);
+  transition: all .2s; cursor: pointer;
+}
+.period-opt.selected { border-color: var(--pink); background: var(--pink-ultra-light); color: var(--pink); }
+.period-opt-icon { width: 38px; height: 38px; border-radius: var(--radius-sm); background: var(--gray-100); display: flex; align-items: center; justify-content: center; }
+.period-opt.selected .period-opt-icon { background: var(--pink-ultra-light); }
+.period-custom { display: none; gap: 12px; flex-direction: column; margin-top: 4px; }
+.period-custom.show { display: flex; }
+.form-group label { display: block; font-size: .82rem; font-weight: 700; color: var(--gray-500); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+.form-group input { width: 100%; padding: 12px 14px; border-radius: var(--radius-sm); border: 1.5px solid var(--gray-200); font-size: .95rem; color: var(--gray-900); background: var(--gray-50); }
+.btn-primary {
+  width: 100%; padding: 16px; background: var(--pink-gradient);
+  border-radius: var(--radius-md); font-size: 1rem; font-weight: 800;
+  color: white; box-shadow: var(--shadow-md); transition: all .2s;
+}
+.btn-primary:active { transform: scale(.97); }
+
+/* ===== TOP BAR ===== */
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 12px; background: var(--white);
+  position: sticky; top: 0; z-index: 50;
+  border-bottom: 1px solid var(--gray-100);
+}
+.top-bar-left { display: flex; flex-direction: column; }
+.top-bar-greeting { font-size: .78rem; color: var(--gray-400); font-weight: 600; }
+.top-bar-title { font-size: 1.15rem; font-weight: 800; color: var(--gray-900); }
+.top-bar-actions { display: flex; align-items: center; gap: 10px; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: var(--radius-sm);
+  background: var(--gray-100); display: flex; align-items: center; justify-content: center;
+  position: relative; transition: all .15s;
+}
+.icon-btn:active { transform: scale(.92); }
+.icon-btn svg { width: 20px; height: 20px; stroke: var(--gray-700); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icon-btn.sync-spinning svg { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.notif-dot { position: absolute; top: 8px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--pink); border: 1.5px solid white; }
+
+/* ===== WEEK STRIP ===== */
+.week-strip { background: var(--white); padding: 12px 16px 16px; border-bottom: 1px solid var(--gray-100); }
+.week-strip-inner { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.week-strip-inner::-webkit-scrollbar { display: none; }
+.day-chip {
+  flex-shrink: 0; display: flex; flex-direction: column; align-items: center;
+  gap: 4px; padding: 10px 14px; border-radius: var(--radius-md);
+  background: var(--gray-100); min-width: 54px; cursor: pointer; transition: all .2s;
+}
+.day-chip.active { background: var(--pink-gradient); box-shadow: var(--shadow-md); }
+.day-chip .day-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--gray-400); }
+.day-chip .day-num { font-size: 1.1rem; font-weight: 800; color: var(--gray-700); }
+.day-chip.active .day-label, .day-chip.active .day-num { color: white; }
+.day-chip.today .day-num { color: var(--pink); }
+.day-chip.active.today .day-num { color: white; }
+
+/* ===== STATS CARDS ===== */
+.stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px 20px; }
+.stat-card {
+  background: var(--white); border-radius: var(--radius-md);
+  padding: 16px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 8px;
+}
+.stat-card-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+.stat-card-icon.pink { background: var(--pink-ultra-light); }
+.stat-card-icon.purple { background: #F3E5F5; }
+.stat-card-icon svg { width: 18px; height: 18px; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.stat-card-icon.pink svg { stroke: var(--pink); }
+.stat-card-icon.purple svg { stroke: var(--purple); }
+.stat-card-value { font-size: 1.4rem; font-weight: 900; color: var(--gray-900); line-height: 1; }
+.stat-card-label { font-size: .75rem; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: .4px; }
+
+/* ===== SECTION HEADER ===== */
+.section-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 20px 12px; }
+.section-title { font-size: 1rem; font-weight: 800; color: var(--gray-900); }
+.section-link { font-size: .82rem; font-weight: 700; color: var(--pink); }
+
+/* ===== APPOINTMENT LIST ===== */
+.appt-list { display: flex; flex-direction: column; gap: 10px; padding: 0 20px 12px; }
+.appt-card {
+  background: var(--white); border-radius: var(--radius-md); padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-sm);
+  position: relative; overflow: hidden; cursor: pointer; transition: all .2s;
+}
+.appt-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 4px 0 0 4px; }
+.appt-card.status-paid::before { background: var(--success); }
+.appt-card.status-open::before { background: var(--warning); }
+.appt-card.status-credit::before { background: var(--danger); }
+.appt-card:active { transform: scale(.98); }
+.appt-time { font-size: .82rem; font-weight: 700; color: var(--gray-400); min-width: 44px; }
+.appt-info { flex: 1; }
+.appt-name { font-size: .95rem; font-weight: 700; color: var(--gray-900); }
+.appt-service { font-size: .8rem; color: var(--gray-400); margin-top: 2px; }
+.appt-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.appt-value { font-size: .95rem; font-weight: 800; color: var(--gray-900); }
+.appt-status-badge {
+  font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 99px;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.appt-status-badge.paid { background: #E8F5E9; color: var(--success); }
+.appt-status-badge.open { background: #FFF3E0; color: var(--warning); }
+.appt-status-badge.credit { background: #FFEBEE; color: var(--danger); }
+
+/* ===== CHART CONTAINER ===== */
+.chart-container { padding: 4px 20px 16px; }
+.chart-card { background: var(--white); border-radius: var(--radius-md); padding: 16px; box-shadow: var(--shadow-sm); }
+.chart-title { font-size: .85rem; font-weight: 800; color: var(--gray-700); margin-bottom: 12px; }
+.chart-wrap { position: relative; height: 100px; }
+canvas#weekChart { width: 100% !important; }
+
+/* ===== CALENDAR SCREEN ===== */
+.cal-header { background: var(--white); padding: 16px 20px; }
+.cal-month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.cal-month-label { font-size: 1.2rem; font-weight: 800; color: var(--gray-900); }
+.cal-nav-btn { width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--gray-100); display: flex; align-items: center; justify-content: center; }
+.cal-nav-btn svg { width: 18px; height: 18px; stroke: var(--gray-700); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-weekday { text-align: center; font-size: .72rem; font-weight: 800; color: var(--gray-400); text-transform: uppercase; padding: 4px 0 8px; }
+.cal-day {
+  aspect-ratio: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: .88rem; font-weight: 700; color: var(--gray-700); position: relative;
+  transition: all .15s;
+}
+.cal-day:active { transform: scale(.9); }
+.cal-day.other-month { color: var(--gray-300); }
+.cal-day.today { color: var(--pink); font-weight: 900; }
+.cal-day.today::after { content: ''; position: absolute; bottom: 4px; width: 4px; height: 4px; border-radius: 50%; background: var(--pink); }
+.cal-day.selected { background: var(--pink-gradient); color: white; box-shadow: var(--shadow-sm); }
+.cal-day.selected::after { display: none; }
+.cal-day.has-events::before { content: ''; position: absolute; top: 4px; right: 4px; width: 5px; height: 5px; border-radius: 50%; background: var(--pink); }
+.cal-day.selected.has-events::before { background: rgba(255,255,255,.7); }
+
+.cal-body { padding: 0 20px; }
+.cal-day-header { padding: 16px 0 8px; }
+.cal-day-title { font-size: 1rem; font-weight: 800; color: var(--gray-900); }
+.cal-day-subtitle { font-size: .82rem; color: var(--gray-400); font-weight: 500; margin-top: 2px; }
+
+/* ===== FINANCE SCREEN ===== */
+.finance-top { padding: 20px; }
+.finance-main-card {
+  background: var(--pink-gradient); border-radius: var(--radius-lg); padding: 24px;
+  color: white; box-shadow: var(--shadow-lg); position: relative; overflow: hidden; margin-bottom: 16px;
+}
+.finance-main-card::after {
+  content: ''; position: absolute; right: -30px; top: -30px;
+  width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,.08);
+}
+.finance-main-card::before {
+  content: ''; position: absolute; right: 40px; bottom: -40px;
+  width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.06);
+}
+.finance-card-label { font-size: .78rem; font-weight: 700; opacity: .8; text-transform: uppercase; letter-spacing: .5px; }
+.finance-card-value { font-size: 2.2rem; font-weight: 900; margin: 6px 0 4px; line-height: 1; }
+.finance-card-sub { font-size: .82rem; opacity: .75; font-weight: 600; }
+.finance-card-row { display: flex; justify-content: space-between; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.2); }
+.finance-card-mini-label { font-size: .7rem; opacity: .7; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+.finance-card-mini-value { font-size: .95rem; font-weight: 800; }
+
+.finance-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 0 20px 16px; }
+.finance-mini-card { background: var(--white); border-radius: var(--radius-md); padding: 14px 12px; box-shadow: var(--shadow-sm); text-align: center; }
+.fmc-value { font-size: 1.1rem; font-weight: 900; }
+.fmc-label { font-size: .7rem; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: .3px; margin-top: 2px; }
+.fmc-value.green { color: var(--success); }
+.fmc-value.orange { color: var(--warning); }
+.fmc-value.red { color: var(--danger); }
+
+.filter-bar { display: flex; gap: 8px; padding: 0 20px 16px; overflow-x: auto; scrollbar-width: none; }
+.filter-bar::-webkit-scrollbar { display: none; }
+.filter-chip {
+  flex-shrink: 0; padding: 8px 14px; border-radius: 99px;
+  font-size: .82rem; font-weight: 700; background: var(--gray-100); color: var(--gray-500);
+  transition: all .15s; cursor: pointer;
+}
+.filter-chip.active { background: var(--pink-ultra-light); color: var(--pink); }
+
+.finance-chart-card { background: var(--white); border-radius: var(--radius-md); padding: 16px; margin: 0 20px 16px; box-shadow: var(--shadow-sm); }
+.pie-wrap { display: flex; align-items: center; gap: 16px; }
+.pie-canvas-wrap { width: 100px; height: 100px; flex-shrink: 0; }
+.pie-legend { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.pie-legend-item { display: flex; align-items: center; gap: 8px; font-size: .82rem; }
+.pie-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.pie-legend-label { color: var(--gray-500); font-weight: 600; }
+.pie-legend-val { margin-left: auto; font-weight: 800; color: var(--gray-800); }
+
+/* ===== BOTTOM NAV ===== */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0; height: var(--nav-h);
+  background: var(--white); border-top: 1px solid var(--gray-100);
+  display: flex; align-items: center; justify-content: space-around;
+  padding: 0 8px; z-index: 100;
+  box-shadow: 0 -4px 24px rgba(0,0,0,.05);
+}
+.nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 4px; padding: 8px 4px; cursor: pointer; transition: all .15s; position: relative;
+}
+.nav-item svg { width: 22px; height: 22px; stroke: var(--gray-300); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: stroke .15s; }
+.nav-item.active svg { stroke: var(--pink); }
+.nav-label { font-size: .68rem; font-weight: 700; color: var(--gray-300); text-transform: uppercase; letter-spacing: .5px; transition: color .15s; }
+.nav-item.active .nav-label { color: var(--pink); }
+.nav-center { position: relative; flex: 0 0 64px; display: flex; align-items: center; justify-content: center; }
+.nav-avatar {
+  width: 52px; height: 52px; border-radius: 50%; object-fit: cover;
+  border: 3px solid var(--white); box-shadow: 0 0 0 2px var(--pink), var(--shadow-md);
+  position: relative; top: -8px; cursor: pointer;
+}
+.nav-avatar-placeholder {
+  width: 52px; height: 52px; border-radius: 50%; background: var(--pink-gradient);
+  border: 3px solid var(--white); box-shadow: 0 0 0 2px var(--pink), var(--shadow-md);
+  position: relative; top: -8px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; font-weight: 800; color: white;
+}
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200;
+  display: none; align-items: flex-end; backdrop-filter: blur(2px);
+}
+.modal-overlay.open { display: flex; }
+.modal-sheet {
+  background: var(--white); border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  width: 100%; padding: 8px 24px 40px; animation: slideUp .3s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal-handle { width: 40px; height: 4px; border-radius: 99px; background: var(--gray-200); margin: 0 auto 20px; }
+.modal-title { font-size: 1.1rem; font-weight: 800; color: var(--gray-900); margin-bottom: 4px; }
+.modal-subtitle { font-size: .85rem; color: var(--gray-400); margin-bottom: 20px; }
+.modal-field { margin-bottom: 16px; }
+.modal-field label { display: block; font-size: .8rem; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
+.modal-field input, .modal-field select {
+  width: 100%; padding: 12px 14px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--gray-200); font-size: .95rem; color: var(--gray-900); background: var(--gray-50);
+  transition: border-color .15s;
+}
+.modal-field input:focus, .modal-field select:focus { border-color: var(--pink); }
+.status-btns { display: flex; gap: 8px; }
+.status-btn {
+  flex: 1; padding: 10px 6px; border-radius: var(--radius-sm); border: 1.5px solid var(--gray-200);
+  font-size: .82rem; font-weight: 700; color: var(--gray-500); text-align: center; cursor: pointer;
+  transition: all .15s;
+}
+.status-btn.active-paid { border-color: var(--success); background: #E8F5E9; color: var(--success); }
+.status-btn.active-open { border-color: var(--warning); background: #FFF3E0; color: var(--warning); }
+.status-btn.active-credit { border-color: var(--danger); background: #FFEBEE; color: var(--danger); }
+.modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+.btn-secondary { flex: 1; padding: 14px; border-radius: var(--radius-md); background: var(--gray-100); font-size: .95rem; font-weight: 700; color: var(--gray-700); }
+.btn-danger { flex: 1; padding: 14px; border-radius: var(--radius-md); background: #FFEBEE; font-size: .95rem; font-weight: 700; color: var(--danger); }
+
+/* ===== TOAST ===== */
+.toast {
+  position: fixed; bottom: calc(var(--nav-h) + 16px); left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--gray-900); color: white; padding: 12px 20px; border-radius: var(--radius-md);
+  font-size: .88rem; font-weight: 600; z-index: 300; opacity: 0; transition: all .3s;
+  white-space: nowrap; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ===== EMPTY STATE ===== */
+.empty-state { display: flex; flex-direction: column; align-items: center; padding: 32px 20px; color: var(--gray-400); }
+.empty-state svg { width: 56px; height: 56px; stroke: var(--gray-200); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; margin-bottom: 12px; }
+.empty-state p { font-size: .9rem; font-weight: 600; }
+
+/* ===== LOADING ===== */
+.loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,.9); z-index: 400; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+.loading-overlay.hidden { display: none; }
+.spinner { width: 40px; height: 40px; border: 3px solid var(--gray-200); border-top-color: var(--pink); border-radius: 50%; animation: spin .8s linear infinite; }
+.loading-text { font-size: .9rem; font-weight: 600; color: var(--gray-500); }
+
+/* ===== SCROLLABLE CONTENT ===== */
+.scroll-content { overflow-y: auto; }
+
+/* ===== RESPONSIVE TWEAKS ===== */
+@media (max-width: 360px) {
+  .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .finance-row { gap: 6px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Carregando...</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ==================== LOGIN SCREEN ==================== -->
+<div class="screen active" id="screen-login">
+  <div class="login-bg-blob login-bg-blob-1"></div>
+  <div class="login-bg-blob login-bg-blob-2"></div>
+  <div class="login-logo">
+    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+  </div>
+  <h1 class="login-title">Glam Studio</h1>
+  <p class="login-subtitle">Controle financeiro para cabeleireiras</p>
+  <div class="login-divider"></div>
+  <ul class="login-feature-list">
+    <li><span class="dot"></span>Sincroniza com Google Calendar</li>
+    <li><span class="dot"></span>Controla pagamentos e fiados</li>
+    <li><span class="dot"></span>Relatórios financeiros automáticos</li>
+    <li><span class="dot"></span>Funciona offline</li>
+  </ul>
+  <button class="btn-google" id="btnGoogleLogin">
+    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+    Entrar com Google
+  </button>
+  <p class="login-terms">Ao entrar, você concorda com nossos termos e autoriza o acesso ao Google Calendar para sincronizar seus agendamentos.</p>
+</div>
+
+<!-- ==================== PERIOD SCREEN ==================== -->
+<div class="screen" id="screen-period">
+  <div class="period-header">
+    <h2>📅 Importar Agenda</h2>
+    <p>Escolha o período para sincronizar com o Google Calendar</p>
+  </div>
+  <div class="period-body">
+    <div class="period-options" id="periodOptions">
+      <div class="period-opt selected" data-value="current">
+        <div class="period-opt-icon">📆</div>
+        Mês atual
+      </div>
+      <div class="period-opt" data-value="last">
+        <div class="period-opt-icon">⬅️</div>
+        Último mês
+      </div>
+      <div class="period-opt" data-value="two">
+        <div class="period-opt-icon">📚</div>
+        Últimos 2 meses
+      </div>
+      <div class="period-opt" data-value="custom">
+        <div class="period-opt-icon">🗓️</div>
+        Intervalo personalizado
+      </div>
+    </div>
+    <div class="period-custom" id="periodCustom">
+      <div class="form-group">
+        <label>Data inicial</label>
+        <input type="date" id="customStart">
+      </div>
+      <div class="form-group">
+        <label>Data final</label>
+        <input type="date" id="customEnd">
+      </div>
+    </div>
+    <button class="btn-primary" id="btnSyncCalendar">Sincronizar Agenda ✨</button>
+  </div>
+</div>
+
+<!-- ==================== HOME SCREEN ==================== -->
+<div class="screen" id="screen-home">
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <span class="top-bar-greeting" id="homeGreeting">Bom dia!</span>
+      <span class="top-bar-title">Controle Financeiro</span>
+    </div>
+    <div class="top-bar-actions">
+      <button class="icon-btn" id="homeSyncBtn" title="Sincronizar">
+        <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      </button>
+      <button class="icon-btn" title="Notificações">
+        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="notif-dot"></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="week-strip" id="homeWeekStrip"></div>
+
+  <div class="stats-row" id="homeStats">
+    <div class="stat-card">
+      <div class="stat-card-icon pink">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      </div>
+      <div class="stat-card-value" id="statAppts">0</div>
+      <div class="stat-card-label">Atendimentos hoje</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-icon purple">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      </div>
+      <div class="stat-card-value" id="statRevenue">R$ 0</div>
+      <div class="stat-card-label">Faturado hoje</div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <span class="section-title" id="homeDayTitle">Hoje</span>
+    <span class="section-link" id="btnOpenAgenda">Ver agenda →</span>
+  </div>
+  <div class="appt-list" id="homeApptList"></div>
+
+  <div class="chart-container">
+    <div class="chart-card">
+      <div class="chart-title">Faturamento da semana</div>
+      <div class="chart-wrap">
+        <canvas id="weekChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== AGENDA SCREEN ==================== -->
+<div class="screen" id="screen-agenda">
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <span class="top-bar-greeting">Sua agenda</span>
+      <span class="top-bar-title" id="agendaMonthTitle">Calendário</span>
+    </div>
+    <div class="top-bar-actions">
+      <button class="icon-btn" id="agendaSyncBtn">
+        <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="cal-header">
+    <div class="cal-month-nav">
+      <button class="cal-nav-btn" id="calPrevMonth">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span class="cal-month-label" id="calMonthLabel"></span>
+      <button class="cal-nav-btn" id="calNextMonth">
+        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <div class="cal-body">
+    <div class="cal-day-header">
+      <div class="cal-day-title" id="calSelectedTitle">Selecione um dia</div>
+      <div class="cal-day-subtitle" id="calSelectedSub"></div>
+    </div>
+    <div class="appt-list" id="calApptList"></div>
+  </div>
+</div>
+
+<!-- ==================== FINANCE SCREEN ==================== -->
+<div class="screen" id="screen-finance">
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <span class="top-bar-greeting">Relatório financeiro</span>
+      <span class="top-bar-title" id="financeMonthTitle">Finanças</span>
+    </div>
+    <div class="top-bar-actions">
+      <button class="icon-btn" id="financeSyncBtn">
+        <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="finance-top">
+    <div class="finance-main-card">
+      <div class="finance-card-label">Total do mês</div>
+      <div class="finance-card-value" id="finTotalMonth">R$ 0</div>
+      <div class="finance-card-sub">Acumulado até hoje</div>
+      <div class="finance-card-row">
+        <div>
+          <div class="finance-card-mini-label">Previsto</div>
+          <div class="finance-card-mini-value" id="finPrevisto">R$ 0</div>
+        </div>
+        <div>
+          <div class="finance-card-mini-label">Atendimentos</div>
+          <div class="finance-card-mini-value" id="finTotalAppts">0</div>
+        </div>
+        <div>
+          <div class="finance-card-mini-label">Ticket médio</div>
+          <div class="finance-card-mini-value" id="finTicket">R$ 0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cal-month-nav" style="padding: 0 0 8px;">
+      <button class="cal-nav-btn" id="finPrevMonth">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span class="cal-month-label" id="finMonthLabel"></span>
+      <button class="cal-nav-btn" id="finNextMonth">
+        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="finance-row">
+    <div class="finance-mini-card">
+      <div class="fmc-value green" id="finPaid">R$ 0</div>
+      <div class="fmc-label">Recebido</div>
+    </div>
+    <div class="finance-mini-card">
+      <div class="fmc-value orange" id="finOpen">R$ 0</div>
+      <div class="fmc-label">Em aberto</div>
+    </div>
+    <div class="finance-mini-card">
+      <div class="fmc-value red" id="finCredit">R$ 0</div>
+      <div class="fmc-label">Fiado</div>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <div class="filter-chip active" data-status="all">Todos</div>
+    <div class="filter-chip" data-status="paid">Pago</div>
+    <div class="filter-chip" data-status="open">Em aberto</div>
+    <div class="filter-chip" data-status="credit">Fiado</div>
+  </div>
+
+  <div class="finance-chart-card">
+    <div class="chart-title">Distribuição do mês</div>
+    <div class="pie-wrap">
+      <div class="pie-canvas-wrap"><canvas id="pieChart" width="100" height="100"></canvas></div>
+      <div class="pie-legend">
+        <div class="pie-legend-item">
+          <div class="pie-dot" style="background:#4CAF50"></div>
+          <span class="pie-legend-label">Pago</span>
+          <span class="pie-legend-val" id="pieLegPaid">R$ 0</span>
+        </div>
+        <div class="pie-legend-item">
+          <div class="pie-dot" style="background:#FF9800"></div>
+          <span class="pie-legend-label">Em aberto</span>
+          <span class="pie-legend-val" id="pieLegOpen">R$ 0</span>
+        </div>
+        <div class="pie-legend-item">
+          <div class="pie-dot" style="background:#F44336"></div>
+          <span class="pie-legend-label">Fiado</span>
+          <span class="pie-legend-val" id="pieLegCredit">R$ 0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <div class="chart-card">
+      <div class="chart-title">Evolução semanal</div>
+      <div class="chart-wrap">
+        <canvas id="lineChartFinance"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header"><span class="section-title" id="finListTitle">Atendimentos</span></div>
+  <div class="appt-list" id="financeApptList" style="padding-bottom: 24px;"></div>
+</div>
+
+<!-- ==================== BOTTOM NAV ==================== -->
+<nav class="bottom-nav" id="bottomNav" style="display:none">
+  <div class="nav-item active" data-screen="home">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span class="nav-label">Home</span>
+  </div>
+  <div class="nav-center">
+    <img id="navAvatar" class="nav-avatar" style="display:none" src="" alt="perfil">
+    <div id="navAvatarPlaceholder" class="nav-avatar-placeholder">G</div>
+  </div>
+  <div class="nav-item" data-screen="agenda">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <span class="nav-label">Agenda</span>
+  </div>
+  <!-- Hidden Finance Tab accessible from section link -->
+  <div class="nav-item" data-screen="finance" style="display:none">
+    <span class="nav-label">Finanças</span>
+  </div>
+</nav>
+
+<!-- Section link for finances inside home -->
+<div id="financeNavHelper" style="display:none"></div>
+
+<!-- ==================== MODAL ==================== -->
+<div class="modal-overlay" id="apptModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modalTitle">Atendimento</div>
+    <div class="modal-subtitle" id="modalSubtitle"></div>
+    <div class="modal-field">
+      <label>Valor (R$)</label>
+      <input type="number" id="modalValue" placeholder="0.00" step="0.01" min="0">
+    </div>
+    <div class="modal-field">
+      <label>Status do Pagamento</label>
+      <div class="status-btns">
+        <div class="status-btn active-open" data-s="open" id="sBtnOpen">Em aberto</div>
+        <div class="status-btn" data-s="paid" id="sBtnPaid">Pago ✓</div>
+        <div class="status-btn" data-s="credit" id="sBtnCredit">Fiado</div>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" id="modalCancel">Cancelar</button>
+      <button class="btn-primary" id="modalSave" style="flex:1.5">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCRIPTS ==================== -->
+<script>
+// =============================================
+// STATE
+// =============================================
+const STATE = {
+  user: null,
+  googleToken: null,
+  appointments: [], // { id, title, date, time, value, status, calendarId, source }
+  selectedDate: new Date(),
+  calDate: new Date(),
+  finDate: new Date(),
+  finFilter: 'all',
+  syncing: false,
+  periodType: 'current',
+  periodStart: null,
+  periodEnd: null,
+  initialized: false
+};
+
+// =============================================
+// UTILS
+// =============================================
+const $ = (id) => document.getElementById(id);
+const fmt = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtShort = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+function parseValue(str) {
+  if (!str) return 0;
+  const s = String(str).replace(/[R$\s]/g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function extractValueFromDescription(desc) {
+  if (!desc) return 0;
+  const patterns = [
+    /R\$\s*([\d]+(?:[.,]\d{1,2})?)/i,
+    /valor[:\s]+([\d]+(?:[.,]\d{1,2})?)/i,
+    /^([\d]+(?:[.,]\d{1,2})?)$/m,
+    /([\d]+(?:[.,]\d{1,2})?)/
+  ];
+  for (const p of patterns) {
+    const m = desc.match(p);
+    if (m) return parseValue(m[1]);
+  }
+  return 0;
+}
+
+function dateKey(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+
+function today() { return new Date(); }
+
+const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DAYS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const DAYS_PT_SHORT = ['D','S','T','Q','Q','S','S'];
+
+function showToast(msg, dur=2500) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+function setLoading(show, msg='Carregando...') {
+  const el = $('loadingOverlay');
+  el.classList.toggle('hidden', !show);
+  el.querySelector('.loading-text').textContent = msg;
+}
+
+// =============================================
+// AUTH
+// =============================================
+function initAuth() {
+  if (!window._fb) { setTimeout(initAuth, 200); return; }
+  const { auth, onAuthStateChanged } = window._fb;
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      STATE.user = user;
+      await loadUserFromFirestore(user);
+      if (!STATE.initialized) { STATE.initialized = true; showApp(); }
+    } else {
+      STATE.user = null; STATE.initialized = false; showScreen('login');
+      $('bottomNav').style.display = 'none';
+    }
+    setLoading(false);
+  });
+}
+
+async function loginWithGoogle() {
+  const { auth, googleProvider, signInWithPopup } = window._fb;
+  try {
+    setLoading(true, 'Entrando com Google...');
+    const result = await signInWithPopup(auth, googleProvider);
+    // Get access token for Calendar API
+    const credential = result._tokenResponse;
+    if (result._tokenResponse && result._tokenResponse.oauthAccessToken) {
+      STATE.googleToken = result._tokenResponse.oauthAccessToken;
+    }
+    // Try to get token from GoogleAuthProvider credential
+    try {
+      const { GoogleAuthProvider } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+      const cred = GoogleAuthProvider.credentialFromResult(result);
+      if (cred && cred.accessToken) STATE.googleToken = cred.accessToken;
+    } catch(e) {}
+    await saveUserToFirestore(result.user);
+  } catch (e) {
+    setLoading(false);
+    showToast('❌ Erro ao entrar: ' + (e.message || 'Tente novamente'));
+  }
+}
+
+async function saveUserToFirestore(user) {
+  const { db, doc, setDoc } = window._fb;
+  await setDoc(doc(db, 'users', user.uid), {
+    name: user.displayName, email: user.email, photo: user.photoURL,
+    uid: user.uid, updatedAt: new Date().toISOString()
+  }, { merge: true });
+}
+
+async function loadUserFromFirestore(user) {
+  const { db, doc, getDoc } = window._fb;
+  try {
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data.googleToken) STATE.googleToken = data.googleToken;
+    }
+  } catch(e) {}
+}
+
+// =============================================
+// SHOW APP / SCREENS
+// =============================================
+function showApp() {
+  setLoading(false);
+  // Check if user has appointments
+  const appts = loadLocalAppointments();
+  STATE.appointments = appts;
+  if (appts.length === 0) {
+    showScreen('period');
+  } else {
+    showScreen('home');
+    $('bottomNav').style.display = 'flex';
+    updateNavAvatar();
+    renderHome();
+  }
+}
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(`screen-${name}`).classList.add('active');
+  if (['home','agenda','finance'].includes(name)) {
+    $('bottomNav').style.display = 'flex';
+    updateNavAvatar();
+    document.querySelectorAll('.nav-item').forEach(ni => {
+      ni.classList.toggle('active', ni.dataset.screen === name);
+    });
+    if (name === 'agenda') renderCalendar();
+    if (name === 'finance') renderFinance();
+    if (name === 'home') renderHome();
+  } else {
+    if (!['period'].includes(name)) $('bottomNav').style.display = 'none';
+  }
+}
+
+function updateNavAvatar() {
+  const user = STATE.user;
+  if (!user) return;
+  if (user.photoURL) {
+    $('navAvatar').src = user.photoURL; $('navAvatar').style.display = 'block';
+    $('navAvatarPlaceholder').style.display = 'none';
+  } else {
+    $('navAvatarPlaceholder').textContent = (user.displayName||'G')[0].toUpperCase();
+    $('navAvatarPlaceholder').style.display = 'flex';
+  }
+}
+
+// =============================================
+// LOCAL STORAGE
+// =============================================
+function saveLocalAppointments() {
+  localStorage.setItem('glam_appts', JSON.stringify(STATE.appointments));
+}
+function loadLocalAppointments() {
+  try { return JSON.parse(localStorage.getItem('glam_appts') || '[]'); } catch { return []; }
+}
+
+// =============================================
+// GOOGLE CALENDAR SYNC
+// =============================================
+async function syncCalendar(periodType, startDate, endDate) {
+  if (STATE.syncing) { showToast('⏳ Sincronização em andamento...'); return; }
+  STATE.syncing = true;
+  setSyncBtnsSpinning(true);
+  setLoading(true, 'Sincronizando agenda...');
+
+  // Try to get fresh token
+  if (!STATE.googleToken) {
+    await reAuthForToken();
+  }
+
+  if (!STATE.googleToken) {
+    STATE.syncing = false; setSyncBtnsSpinning(false); setLoading(false);
+    showToast('🔒 Faça login novamente para sincronizar');
+    showScreen('login'); return;
+  }
+
+  const { timeMin, timeMax } = getPeriodRange(periodType, startDate, endDate);
+
+  try {
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=2500`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${STATE.googleToken}` } });
+
+    if (res.status === 401) {
+      STATE.googleToken = null; STATE.syncing = false; setSyncBtnsSpinning(false); setLoading(false);
+      showToast('🔒 Sessão expirada. Faça login novamente.');
+      showScreen('login'); return;
+    }
+    if (!res.ok) throw new Error('Erro ' + res.status);
+
+    const data = await res.json();
+    const events = data.items || [];
+    const imported = mergeCalendarEvents(events);
+    saveLocalAppointments();
+    await syncToFirestore();
+    STATE.syncing = false; setSyncBtnsSpinning(false); setLoading(false);
+    showToast(`✅ ${imported} atendimentos sincronizados!`);
+    showScreen('home');
+    $('bottomNav').style.display = 'flex';
+    updateNavAvatar();
+    renderHome();
+  } catch(e) {
+    STATE.syncing = false; setSyncBtnsSpinning(false); setLoading(false);
+    showToast('❌ Erro na sincronização: ' + e.message);
+  }
+}
+
+async function reAuthForToken() {
+  const { auth, googleProvider, signInWithPopup } = window._fb;
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const { GoogleAuthProvider } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+    const cred = GoogleAuthProvider.credentialFromResult(result);
+    if (cred && cred.accessToken) STATE.googleToken = cred.accessToken;
+  } catch(e) {}
+}
+
+function getPeriodRange(type, start, end) {
+  const now = new Date();
+  let s, e;
+  if (type === 'current') {
+    s = new Date(now.getFullYear(), now.getMonth(), 1);
+    e = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  } else if (type === 'last') {
+    s = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    e = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  } else if (type === 'two') {
+    s = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    e = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  } else {
+    s = start ? new Date(start + 'T00:00:00') : new Date(now.getFullYear(), now.getMonth(), 1);
+    e = end ? new Date(end + 'T23:59:59') : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  }
+  return { timeMin: s.toISOString(), timeMax: e.toISOString() };
+}
+
+function mergeCalendarEvents(events) {
+  let count = 0;
+  const existing = new Map(STATE.appointments.map(a => [a.id, a]));
+
+  for (const ev of events) {
+    if (!ev.start) continue;
+    const start = ev.start.dateTime ? new Date(ev.start.dateTime) : new Date(ev.start.date + 'T00:00:00');
+    const title = ev.summary || 'Atendimento';
+    const desc = ev.description || '';
+    const value = extractValueFromDescription(desc);
+    const id = 'gcal_' + ev.id;
+
+    if (!existing.has(id)) {
+      STATE.appointments.push({
+        id, title, date: dateKey(start),
+        time: ev.start.dateTime ? start.toTimeString().slice(0,5) : '00:00',
+        value, status: 'open', source: 'gcal', description: desc
+      });
+      count++;
+    } else {
+      // Update value if still open and has no manual value
+      const appt = existing.get(id);
+      if (appt.status === 'open' && value > 0 && appt.value === 0) {
+        appt.value = value;
+      }
+    }
+  }
+  // Remove duplicates
+  STATE.appointments = [...new Map(STATE.appointments.map(a => [a.id, a])).values()];
+  return count;
+}
+
+async function syncToFirestore() {
+  if (!STATE.user) return;
+  const { db, doc, setDoc } = window._fb;
+  const uid = STATE.user.uid;
+  // Batch save (simplified: save all as single doc per user)
+  try {
+    await setDoc(doc(db, 'appointments', uid), {
+      userId: uid, data: STATE.appointments, updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch(e) {}
+}
+
+async function loadFromFirestore() {
+  if (!STATE.user) return;
+  const { db, doc, getDoc } = window._fb;
+  try {
+    const snap = await getDoc(doc(db, 'appointments', STATE.user.uid));
+    if (snap.exists()) {
+      const d = snap.data();
+      if (d.data && d.data.length > 0) {
+        // Merge with local
+        const localIds = new Set(STATE.appointments.map(a => a.id));
+        for (const a of d.data) { if (!localIds.has(a.id)) STATE.appointments.push(a); }
+        STATE.appointments = [...new Map(STATE.appointments.map(a => [a.id, a])).values()];
+        saveLocalAppointments();
+      }
+    }
+  } catch(e) {}
+}
+
+function setSyncBtnsSpinning(on) {
+  ['homeSyncBtn','agendaSyncBtn','financeSyncBtn'].forEach(id => {
+    const btn = $(id);
+    if (btn) btn.classList.toggle('sync-spinning', on);
+  });
+}
+
+// =============================================
+// APPOINTMENT HELPERS
+// =============================================
+function getApptsForDate(dateStr) {
+  return STATE.appointments.filter(a => a.date === dateStr).sort((a,b) => a.time.localeCompare(b.time));
+}
+function getApptsForMonth(year, month) {
+  const prefix = `${year}-${String(month+1).padStart(2,'0')}`;
+  return STATE.appointments.filter(a => a.date.startsWith(prefix));
+}
+function getApptsFiltered(year, month, filter) {
+  let appts = getApptsForMonth(year, month);
+  if (filter !== 'all') appts = appts.filter(a => a.status === filter);
+  return appts;
+}
+function sumValues(appts) { return appts.reduce((s, a) => s + (parseFloat(a.value) || 0), 0); }
+
+// =============================================
+// HOME RENDER
+// =============================================
+function renderHome() {
+  const now = today();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Bom dia!' : hour < 18 ? 'Boa tarde!' : 'Boa noite!';
+  $('homeGreeting').textContent = greeting + ' ' + (STATE.user?.displayName?.split(' ')[0] || '');
+
+  renderWeekStrip();
+  renderHomeDayStats();
+  renderHomeAppts();
+  renderWeekChart();
+}
+
+function renderWeekStrip() {
+  const strip = $('homeWeekStrip');
+  const sel = dateKey(STATE.selectedDate);
+  const todayStr = dateKey(today());
+  const days = [];
+  // Show 14 days centered around today
+  const start = new Date(today());
+  start.setDate(start.getDate() - 3);
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    days.push(d);
+  }
+  strip.innerHTML = '<div class="week-strip-inner">' +
+    days.map(d => {
+      const key = dateKey(d);
+      const active = key === sel ? 'active' : '';
+      const todayCls = key === todayStr ? 'today' : '';
+      const hasAppts = getApptsForDate(key).length > 0 ? 'has-ev' : '';
+      return `<div class="day-chip ${active} ${todayCls}" data-date="${key}">
+        <span class="day-label">${DAYS_PT[d.getDay()]}</span>
+        <span class="day-num">${d.getDate()}</span>
+      </div>`;
+    }).join('') + '</div>';
+
+  // Scroll to active
+  setTimeout(() => {
+    const active = strip.querySelector('.day-chip.active');
+    if (active) active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }, 50);
+}
+
+function renderHomeDayStats() {
+  const key = dateKey(STATE.selectedDate);
+  const appts = getApptsForDate(key);
+  $('statAppts').textContent = appts.length;
+  $('statRevenue').textContent = fmtShort(sumValues(appts));
+
+  const opts = { weekday: 'long', day: 'numeric', month: 'long' };
+  const isToday = key === dateKey(today());
+  $('homeDayTitle').textContent = isToday ? 'Hoje' : STATE.selectedDate.toLocaleDateString('pt-BR', opts);
+}
+
+function renderHomeAppts() {
+  const key = dateKey(STATE.selectedDate);
+  const appts = getApptsForDate(key);
+  const list = $('homeApptList');
+  if (appts.length === 0) {
+    list.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <p>Nenhum atendimento neste dia</p>
+    </div>`; return;
+  }
+  list.innerHTML = appts.map(a => apptCardHTML(a)).join('');
+}
+
+function apptCardHTML(a) {
+  const statusMap = { paid: 'Pago', open: 'Em aberto', credit: 'Fiado' };
+  const badge = statusMap[a.status] || 'Em aberto';
+  const statusClass = a.status || 'open';
+  return `<div class="appt-card status-${statusClass}" data-id="${a.id}" onclick="openApptModal('${a.id}')">
+    <span class="appt-time">${a.time || '--:--'}</span>
+    <div class="appt-info">
+      <div class="appt-name">${escHtml(a.title)}</div>
+      ${a.description ? `<div class="appt-service">${escHtml(a.description.slice(0,40))}</div>` : ''}
+    </div>
+    <div class="appt-right">
+      <span class="appt-value">${a.value > 0 ? fmt(a.value) : '--'}</span>
+      <span class="appt-status-badge ${statusClass}">${badge}</span>
+    </div>
+  </div>`;
+}
+
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderWeekChart() {
+  const canvas = $('weekChart');
+  if (!canvas) return;
+  const now = today();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+  const labels = [], values = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
+    labels.push(DAYS_PT[d.getDay()]);
+    values.push(sumValues(getApptsForDate(dateKey(d))));
+  }
+  drawLineChart(canvas, labels, values, '#E91E8C');
+}
+
+// =============================================
+// CALENDAR RENDER
+// =============================================
+function renderCalendar() {
+  const y = STATE.calDate.getFullYear(), m = STATE.calDate.getMonth();
+  $('agendaMonthTitle').textContent = MONTHS_PT[m] + ' ' + y;
+  $('calMonthLabel').textContent = MONTHS_PT[m] + ' ' + y;
+
+  const firstDay = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const todayStr = dateKey(today());
+  const selStr = dateKey(STATE.selectedDate);
+
+  // Weekday headers
+  const headers = DAYS_PT_SHORT.map(d => `<div class="cal-weekday">${d}</div>`).join('');
+
+  // Empty cells + days
+  let cells = '';
+  for (let i = 0; i < firstDay; i++) cells += '<div class="cal-day other-month"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dt = new Date(y, m, d);
+    const key = dateKey(dt);
+    const isToday = key === todayStr ? 'today' : '';
+    const isSel = key === selStr ? 'selected' : '';
+    const hasEv = getApptsForDate(key).length > 0 ? 'has-events' : '';
+    cells += `<div class="cal-day ${isToday} ${isSel} ${hasEv}" data-date="${key}">${d}</div>`;
+  }
+
+  $('calGrid').innerHTML = headers + cells;
+  renderCalDayAppts(STATE.selectedDate);
+}
+
+function renderCalDayAppts(date) {
+  const key = dateKey(date);
+  const appts = getApptsForDate(key);
+  const opts = { weekday: 'long', day: 'numeric', month: 'long' };
+  $('calSelectedTitle').textContent = date.toLocaleDateString('pt-BR', opts);
+  $('calSelectedSub').textContent = appts.length > 0 ? `${appts.length} atendimento(s) · ${fmt(sumValues(appts))}` : 'Nenhum atendimento';
+  const list = $('calApptList');
+  if (appts.length === 0) {
+    list.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <p>Sem atendimentos neste dia</p>
+    </div>`; return;
+  }
+  list.innerHTML = appts.map(a => apptCardHTML(a)).join('');
+}
+
+// =============================================
+// FINANCE RENDER
+// =============================================
+function renderFinance() {
+  const y = STATE.finDate.getFullYear(), m = STATE.finDate.getMonth();
+  $('finMonthLabel').textContent = MONTHS_PT[m] + ' ' + y;
+  $('financeMonthTitle').textContent = MONTHS_PT[m];
+  $('finListTitle').textContent = 'Atendimentos de ' + MONTHS_PT[m];
+
+  const all = getApptsForMonth(y, m);
+  const now = today();
+  const isCurrentMonth = now.getFullYear() === y && now.getMonth() === m;
+
+  // Acumulado até hoje
+  const pastAppts = isCurrentMonth ? all.filter(a => a.date <= dateKey(now)) : all;
+  const futureAppts = isCurrentMonth ? all.filter(a => a.date > dateKey(now)) : [];
+
+  const totalPast = sumValues(pastAppts);
+  const totalFuture = sumValues(futureAppts);
+  const paid = sumValues(all.filter(a => a.status === 'paid'));
+  const open = sumValues(all.filter(a => a.status === 'open'));
+  const credit = sumValues(all.filter(a => a.status === 'credit'));
+  const ticket = all.length > 0 ? totalPast / pastAppts.length || 0 : 0;
+
+  $('finTotalMonth').textContent = fmt(totalPast);
+  $('finPrevisto').textContent = fmt(totalPast + totalFuture);
+  $('finTotalAppts').textContent = all.length;
+  $('finTicket').textContent = fmt(ticket);
+  $('finPaid').textContent = fmt(paid);
+  $('finOpen').textContent = fmt(open);
+  $('finCredit').textContent = fmt(credit);
+  $('pieLegPaid').textContent = fmt(paid);
+  $('pieLegOpen').textContent = fmt(open);
+  $('pieLegCredit').textContent = fmt(credit);
+
+  drawPieChart(paid, open, credit);
+  renderFinanceChart(y, m);
+  renderFinanceList(y, m);
+}
+
+function renderFinanceList(y, m) {
+  const appts = getApptsFiltered(y, m, STATE.finFilter).sort((a,b) => a.date.localeCompare(b.date));
+  const list = $('financeApptList');
+  if (appts.length === 0) {
+    list.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><p>Nenhum resultado</p></div>`; return;
+  }
+  list.innerHTML = appts.map(a => apptCardHTML(a)).join('');
+}
+
+function renderFinanceChart(y, m) {
+  const canvas = $('lineChartFinance');
+  if (!canvas) return;
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const labels = [], values = [];
+  // Weekly buckets
+  for (let w = 1; w <= 5; w++) {
+    const startD = (w-1)*7+1, endD = Math.min(w*7, daysInMonth);
+    let total = 0;
+    for (let d = startD; d <= endD; d++) {
+      const key = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      total += sumValues(getApptsForDate(key));
+    }
+    if (startD <= daysInMonth) { labels.push(`Sem ${w}`); values.push(total); }
+  }
+  drawLineChart(canvas, labels, values, '#E91E8C');
+}
+
+// =============================================
+// CHARTS
+// =============================================
+function drawLineChart(canvas, labels, values, color) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 300, H = canvas.offsetHeight || 100;
+  canvas.width = W; canvas.height = H;
+  ctx.clearRect(0, 0, W, H);
+  const max = Math.max(...values, 1);
+  const pad = { l: 10, r: 10, t: 10, b: 24 };
+  const gw = W - pad.l - pad.r, gh = H - pad.t - pad.b;
+  const step = gw / (labels.length - 1 || 1);
+
+  const pts = values.map((v, i) => ({ x: pad.l + i * step, y: pad.t + gh - (v / max) * gh }));
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b);
+  grad.addColorStop(0, color + '44');
+  grad.addColorStop(1, color + '00');
+  ctx.beginPath();
+  if (pts.length > 1) {
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      const cp = { x: (pts[i-1].x + pts[i].x)/2, y: (pts[i-1].y + pts[i].y)/2 };
+      ctx.quadraticCurveTo(pts[i-1].x, pts[i-1].y, cp.x, cp.y);
+    }
+    ctx.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+  } else if (pts.length === 1) { ctx.moveTo(pts[0].x, pts[0].y); }
+  ctx.lineTo(pad.l + gw, H - pad.b);
+  ctx.lineTo(pad.l, H - pad.b);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  if (pts.length > 1) {
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      const cp = { x: (pts[i-1].x + pts[i].x)/2, y: (pts[i-1].y + pts[i].y)/2 };
+      ctx.quadraticCurveTo(pts[i-1].x, pts[i-1].y, cp.x, cp.y);
+    }
+    ctx.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+  }
+  ctx.stroke();
+
+  // Dots + labels
+  ctx.font = '10px Nunito'; ctx.textAlign = 'center';
+  pts.forEach((p, i) => {
+    ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI*2);
+    ctx.fillStyle = color; ctx.fill();
+    ctx.fillStyle = '#A89BB5';
+    ctx.fillText(labels[i], p.x, H - 6);
+  });
+}
+
+let pieChartInst = null;
+function drawPieChart(paid, open, credit) {
+  const canvas = $('pieChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const total = paid + open + credit || 1;
+  const data = [paid/total, open/total, credit/total];
+  const colors = ['#4CAF50','#FF9800','#F44336'];
+  const cx = 50, cy = 50, r = 38;
+  ctx.clearRect(0,0,100,100);
+  let start = -Math.PI/2;
+  data.forEach((d, i) => {
+    const end = start + d * 2 * Math.PI;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,r,start,end);
+    ctx.fillStyle = colors[i]; ctx.fill();
+    start = end;
+  });
+  // Center hole
+  ctx.beginPath(); ctx.arc(cx,cy,22,0,2*Math.PI);
+  ctx.fillStyle = '#fff'; ctx.fill();
+}
+
+// =============================================
+// MODAL
+// =============================================
+let modalApptId = null;
+let modalStatus = 'open';
+
+function openApptModal(id) {
+  const appt = STATE.appointments.find(a => a.id === id);
+  if (!appt) return;
+  modalApptId = id;
+  modalStatus = appt.status || 'open';
+  $('modalTitle').textContent = appt.title;
+  $('modalSubtitle').textContent = appt.date + (appt.time ? ' às ' + appt.time : '');
+  $('modalValue').value = appt.value > 0 ? appt.value : '';
+  updateStatusBtns();
+  $('apptModal').classList.add('open');
+}
+
+function updateStatusBtns() {
+  ['sBtnPaid','sBtnOpen','sBtnCredit'].forEach(id => {
+    const btn = $(id);
+    btn.className = 'status-btn';
+    if (btn.dataset.s === modalStatus) btn.classList.add('active-' + modalStatus);
+  });
+}
+
+function closeModal() { $('apptModal').classList.remove('open'); }
+
+function saveModal() {
+  const appt = STATE.appointments.find(a => a.id === modalApptId);
+  if (!appt) return;
+  const val = parseFloat($('modalValue').value) || 0;
+  appt.value = val; appt.status = modalStatus;
+  saveLocalAppointments();
+  syncToFirestore();
+  closeModal();
+  showToast('✅ Atendimento atualizado!');
+  // Refresh current screen
+  const active = document.querySelector('.screen.active');
+  if (active?.id === 'screen-home') renderHome();
+  else if (active?.id === 'screen-agenda') renderCalDayAppts(STATE.selectedDate);
+  else if (active?.id === 'screen-finance') renderFinance();
+}
+
+// =============================================
+// EVENT LISTENERS
+// =============================================
+document.addEventListener('DOMContentLoaded', () => {
+  setLoading(true);
+  initAuth();
+
+  // Login
+  $('btnGoogleLogin').addEventListener('click', loginWithGoogle);
+
+  // Period options
+  $('periodOptions').addEventListener('click', e => {
+    const opt = e.target.closest('.period-opt');
+    if (!opt) return;
+    document.querySelectorAll('.period-opt').forEach(o => o.classList.remove('selected'));
+    opt.classList.add('selected');
+    STATE.periodType = opt.dataset.value;
+    $('periodCustom').classList.toggle('show', STATE.periodType === 'custom');
+  });
+
+  $('btnSyncCalendar').addEventListener('click', async () => {
+    const start = $('customStart').value, end = $('customEnd').value;
+    if (STATE.periodType === 'custom' && (!start || !end)) {
+      showToast('⚠️ Informe as datas do intervalo'); return;
+    }
+    await syncCalendar(STATE.periodType, start, end);
+  });
+
+  // Sync buttons
+  ['homeSyncBtn','agendaSyncBtn','financeSyncBtn'].forEach(id => {
+    $(id)?.addEventListener('click', () => {
+      showScreen('period');
+      $('bottomNav').style.display = 'flex';
+    });
+  });
+
+  // Navigation
+  document.querySelectorAll('.nav-item[data-screen]').forEach(ni => {
+    ni.addEventListener('click', () => showScreen(ni.dataset.screen));
+  });
+
+  // Home: week strip click
+  $('homeWeekStrip').addEventListener('click', e => {
+    const chip = e.target.closest('.day-chip');
+    if (!chip) return;
+    STATE.selectedDate = new Date(chip.dataset.date + 'T12:00:00');
+    renderWeekStrip();
+    renderHomeDayStats();
+    renderHomeAppts();
+  });
+
+  // Home: open full agenda
+  $('btnOpenAgenda').addEventListener('click', () => showScreen('agenda'));
+
+  // Calendar navigation
+  $('calPrevMonth').addEventListener('click', () => {
+    STATE.calDate.setMonth(STATE.calDate.getMonth() - 1);
+    renderCalendar();
+  });
+  $('calNextMonth').addEventListener('click', () => {
+    STATE.calDate.setMonth(STATE.calDate.getMonth() + 1);
+    renderCalendar();
+  });
+  $('calGrid').addEventListener('click', e => {
+    const day = e.target.closest('.cal-day');
+    if (!day || !day.dataset.date || day.classList.contains('other-month')) return;
+    STATE.selectedDate = new Date(day.dataset.date + 'T12:00:00');
+    renderCalendar();
+  });
+
+  // Finance navigation
+  $('finPrevMonth').addEventListener('click', () => {
+    STATE.finDate.setMonth(STATE.finDate.getMonth() - 1);
+    renderFinance();
+  });
+  $('finNextMonth').addEventListener('click', () => {
+    STATE.finDate.setMonth(STATE.finDate.getMonth() + 1);
+    renderFinance();
+  });
+
+  // Finance filters
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      STATE.finFilter = chip.dataset.status;
+      const y = STATE.finDate.getFullYear(), m = STATE.finDate.getMonth();
+      renderFinanceList(y, m);
+    });
+  });
+
+  // Finance appt list clicks (event delegation)
+  $('financeApptList').addEventListener('click', e => {
+    const card = e.target.closest('.appt-card');
+    if (card) openApptModal(card.dataset.id);
+  });
+
+  // Modal controls
+  $('apptModal').addEventListener('click', e => {
+    if (e.target === $('apptModal')) closeModal();
+  });
+  $('modalCancel').addEventListener('click', closeModal);
+  $('modalSave').addEventListener('click', saveModal);
+
+  document.querySelectorAll('.status-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modalStatus = btn.dataset.s;
+      updateStatusBtns();
+    });
+  });
+});
+
+// =============================================
+// PWA SERVICE WORKER (inline registration)
+// =============================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    // Inline SW via blob (since we're single file)
+    const swCode = `
+const CACHE = 'glam-v1';
+const ASSETS = [location.href];
+self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))));
+self.addEventListener('fetch', e => {
+  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
+    const clone = res.clone();
+    caches.open(CACHE).then(c => c.put(e.request, clone));
+    return res;
+  }).catch(() => caches.match(e.request))));
+});
+    `;
+    const blob = new Blob([swCode], { type: 'application/javascript' });
+    const swURL = URL.createObjectURL(blob);
+    navigator.serviceWorker.register(swURL).catch(() => {});
+  });
+}
+</script>
+
+<!-- PWA Manifest inline -->
+<script>
+(function() {
+  const manifest = {
+    name: "Glam Studio",
+    short_name: "Glam",
+    description: "Controle financeiro para cabeleireiras",
+    start_url: "./",
+    display: "standalone",
+    background_color: "#FFFFFF",
+    theme_color: "#E91E8C",
+    orientation: "portrait",
+    icons: [
+      { src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%23E91E8C'/><text x='50%' y='58%' dominant-baseline='middle' text-anchor='middle' font-size='100' fill='white'>✂</text></svg>", sizes: "192x192", type: "image/svg+xml" }
+    ]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+  const link = document.createElement('link');
+  link.rel = 'manifest'; link.href = URL.createObjectURL(blob);
+  document.head.appendChild(link);
+})();
+</script>
+
+</body>
+</html>
