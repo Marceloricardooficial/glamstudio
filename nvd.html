@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Controle Financeiro - Studio Glam</title>
+    <!-- Google Fonts: Inter modern & clean -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <!-- Font Awesome 6 (free, outline style) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Chart.js CDN leve para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <!-- Google API Client & Identity Services (GIS) para Calendar -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #fef9f7;
+            color: #2d2a2a;
+            overflow-x: hidden;
+            padding-bottom: 80px;
+        }
+
+        /* container principal */
+        .app-container {
+            max-width: 550px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 30px rgba(0,0,0,0.03);
+            position: relative;
+        }
+
+        /* header moderno */
+        .header {
+            padding: 20px 20px 8px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            border-bottom: 1px solid #f0e4de;
+        }
+        .logo-area h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #c47a6b, #e6a48f);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
+        }
+        .logo-area p {
+            font-size: 0.7rem;
+            color: #b47c6b;
+        }
+        .sync-btn {
+            background: #faece7;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #b45a48;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .sync-btn i { font-size: 0.9rem; }
+        .sync-btn:active { transform: scale(0.96); background: #f0dbd3; }
+
+        /* navegação inferior */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-width: 550px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 12px 20px;
+            border-top: 1px solid #f0e0da;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.02);
+            z-index: 100;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            background: none;
+            border: none;
+            font-size: 0.7rem;
+            color: #b2a09a;
+            transition: 0.2s;
+            cursor: pointer;
+        }
+        .nav-item i { font-size: 1.5rem; }
+        .nav-item.active { color: #c47a6b; font-weight: 500; }
+        .avatar-center {
+            width: 48px;
+            height: 48px;
+            background: #e6cfc6;
+            border-radius: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-top: -15px;
+        }
+        .avatar-center img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* telas */
+        .screen { display: none; padding: 20px 18px 30px 18px; animation: fade 0.25s ease; }
+        .screen.active { display: block; }
+        @keyframes fade { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: translateY(0);} }
+
+        /* cards duplos home */
+        .stats-row {
+            display: flex;
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: #fffaf8;
+            flex: 1;
+            padding: 14px 10px;
+            border-radius: 24px;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03);
+            border: 1px solid #fae4db;
+        }
+        .stat-card h4 { font-size: 0.75rem; font-weight: 500; color: #b98373; margin-bottom: 6px; }
+        .stat-card .number { font-size: 1.7rem; font-weight: 700; color: #2d2a2a; }
+        /* agenda mini dias */
+        .week-scroll {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding: 8px 0 16px;
+            scrollbar-width: thin;
+        }
+        .day-card {
+            min-width: 70px;
+            text-align: center;
+            padding: 10px 0;
+            background: #fef6f2;
+            border-radius: 32px;
+            transition: all 0.2s;
+            border: 1px solid #f3e2da;
+        }
+        .day-card.today { background: #c47a6b20; border-color: #c47a6b; color: #c47a6b; font-weight: 600; }
+        .day-card .weekday { font-size: 0.7rem; }
+        .day-card .daynum { font-size: 1.2rem; font-weight: 600; }
+        .appointment-list {
+            margin-top: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .appt-item {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+            border: 1px solid #f1e3dd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .appt-info h4 { font-size: 1rem; font-weight: 600; }
+        .appt-info p { font-size: 0.75rem; color: #b88a7a; }
+        .status-badge {
+            font-size: 0.7rem;
+            padding: 5px 10px;
+            border-radius: 50px;
+            background: #f2e3de;
+            cursor: pointer;
+        }
+        .status-paid { background: #dcfce7; color: #15803d; }
+        .status-pending { background: #fff3e3; color: #b85c1a; }
+        .status-credit { background: #ffe4e6; color: #b91c1c; }
+
+        /* calendário mensal */
+        .month-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 15px 0;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+            text-align: center;
+        }
+        .cal-day {
+            aspect-ratio: 1/1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            background: #fefaf8;
+            cursor: pointer;
+        }
+        .cal-day.selected { background: #c47a6b; color: white; }
+        .cal-day.today-cal { border: 2px solid #c47a6b; background: #fff3ef; }
+        /* financeiro */
+        .finance-card {
+            background: linear-gradient(135deg, #fff7f3, #ffffff);
+            border-radius: 32px;
+            padding: 20px;
+            margin-bottom: 24px;
+            border: 1px solid #f2ddd4;
+        }
+        .filter-row {
+            display: flex;
+            gap: 12px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #c47a6b;
+            padding: 8px 16px;
+            border-radius: 40px;
+            color: #c47a6b;
+            font-weight: 500;
+        }
+        button { background: none; border: none; cursor: pointer; }
+        .graph-container { margin: 20px 0; height: 180px; }
+        .inline-icon { margin-right: 6px; }
+        footer { font-size: 10px; text-align: center; margin-top: 20px; color: #d9bcb0; }
+        .login-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 70vh;
+            padding: 2rem;
+        }
+        .google-btn {
+            background: white;
+            border: 1px solid #e0cfc8;
+            padding: 14px 28px;
+            border-radius: 60px;
+            font-weight: 600;
+            display: flex;
+            gap: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body>
+<div class="app-container" id="appContainer">
+    <div id="loginScreen" class="login-screen">
+        <div style="text-align:center; margin-bottom: 40px;">
+            <i class="fas fa-scissors" style="font-size: 48px; color: #c47a6b;"></i>
+            <h2 style="margin-top: 16px;">Controle Financeiro</h2>
+            <p style="color:#b37c6b;">Faça login com Google e conecte seu calendário</p>
+        </div>
+        <button id="googleLoginBtn" class="google-btn"><i class="fab fa-google"></i> Entrar com Google</button>
+    </div>
+
+    <div id="appContent" style="display: none;">
+        <div class="header">
+            <div class="logo-area">
+                <h1>Controle Financeiro</h1>
+                <p>Studio Glam</p>
+            </div>
+            <button id="globalSyncBtn" class="sync-btn"><i class="fas fa-sync-alt"></i> Sincronizar</button>
+        </div>
+
+        <!-- Telas -->
+        <div id="homeScreen" class="screen active">
+            <div class="stats-row">
+                <div class="stat-card"><h4>✂️ Atendimentos hoje</h4><div class="number" id="todayCount">0</div></div>
+                <div class="stat-card"><h4>💰 Faturamento hoje</h4><div class="number" id="todayRevenue">R$ 0</div></div>
+            </div>
+            <div class="week-scroll" id="weekDaysContainer"></div>
+            <div style="display: flex; justify-content: space-between; margin: 10px 0 5px;"><span><strong>Agendamentos</strong></span><button id="goToFullCalendarBtn" style="color:#c47a6b;">Abrir Agenda Completa →</button></div>
+            <div id="dailyAppointmentsList" class="appointment-list"></div>
+            <div class="graph-container"><canvas id="weeklyChart" width="400" height="150" style="max-height:150px; width:100%"></canvas></div>
+        </div>
+
+        <div id="agendaScreen" class="screen">
+            <div class="month-header"><button id="prevMonthBtn"><i class="fas fa-chevron-left"></i></button><h3 id="monthYearLabel"></h3><button id="nextMonthBtn"><i class="fas fa-chevron-right"></i></button></div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+            <div style="margin: 20px 0 10px;"><strong>Atendimentos em <span id="selectedDateLabel"></span></strong></div>
+            <div id="selectedDayAppointments" class="appointment-list"></div>
+        </div>
+
+        <div id="financaScreen" class="screen">
+            <div class="finance-card">
+                <div>💰 Total faturado (até hoje)</div>
+                <div style="font-size: 2rem; font-weight: 700;" id="totalReceivedUntilToday">R$ 0</div>
+                <div>📈 Previsão mês atual</div>
+                <div style="font-size: 1.5rem; font-weight: 600;" id="monthForecast">R$ 0</div>
+            </div>
+            <div class="filter-row">
+                <select id="financeMonthFilter" style="flex:1; padding: 8px; border-radius: 30px; border:1px solid #f3d9d0;"></select>
+                <button id="customRangeBtn" class="btn-outline">Intervalo</button>
+            </div>
+            <div id="financeSummary" style="display: flex; justify-content: space-between; gap: 12px; margin-bottom: 20px;">
+                <div><small>✅ Recebido</small><br><strong id="sumPaid">R$0</strong></div>
+                <div><small>⏳ Em aberto</small><br><strong id="sumPending">R$0</strong></div>
+                <div><small>📝 Fiado</small><br><strong id="sumCredit">R$0</strong></div>
+            </div>
+            <div class="graph-container"><canvas id="pieChart" width="200" height="160"></canvas></div>
+            <div class="graph-container"><canvas id="monthlyTrendChart" width="400" height="150"></canvas></div>
+        </div>
+
+        <div class="bottom-nav">
+            <button class="nav-item" data-screen="home"><i class="fas fa-home"></i><span>Início</span></button>
+            <button class="nav-item" data-screen="agenda"><i class="fas fa-calendar-alt"></i><span>Agenda</span></button>
+            <div class="avatar-center" id="navAvatar"><img id="userAvatarImg" src="" alt="avatar"></div>
+            <button class="nav-item" data-screen="financa"><i class="fas fa-chart-line"></i><span>Finanças</span></button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==================== CONFIGURAÇÕES ====================
+    const firebaseConfig = {
+        apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+        authDomain: "glam-studio-8b65c.firebaseapp.com",
+        projectId: "glam-studio-8b65c",
+        storageBucket: "glam-studio-8b65c.firebasestorage.app",
+        messagingSenderId: "154294556895",
+        appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    db.enablePersistence().catch(()=>console.warn("persistence fail"));
+
+    let currentUser = null;
+    let accessToken = null; // token para Google Calendar API
+    let gapiInited = false, gisInited = false;
+    let tokenClient = null;
+
+    // estado UI
+    let selectedHomeDate = new Date(); // data foco na home
+    let currentCalendarMonth = new Date();
+    let selectedCalendarDate = new Date();
+    let appointmentsMap = new Map(); // cache key: `${userId}_${dateStr}`
+    let weeklyChart, pieChartInstance, trendChart;
+
+    // utilitários
+    function formatCurrency(value) { return `R$ ${value.toFixed(2).replace('.',',')}`; }
+    function extractValueFromText(text) {
+        if(!text) return 0;
+        let match = text.match(/(?:R\$)?\s*([0-9]{1,3}(?:\.?[0-9]{3})*\,?[0-9]*)/i);
+        if(match) {
+            let numStr = match[1].replace(/\./g, '').replace(',', '.');
+            let val = parseFloat(numStr);
+            if(!isNaN(val)) return val;
+        }
+        let simple = text.match(/\b(\d+(?:\.\d{1,2})?)\b/);
+        if(simple) return parseFloat(simple[1]);
+        return 0;
+    }
+
+    // ========== FIREBASE / CALENDAR SYNC ==========
+    async function syncCalendarEvents(period = 'current_month', startDate = null, endDate = null) {
+        if(!currentUser || !accessToken) { alert("Faça login e conceda acesso ao Google Calendar."); return false; }
+        let rangeStart, rangeEnd;
+        if(period === 'current_month') { let d = new Date(); rangeStart = new Date(d.getFullYear(), d.getMonth(), 1); rangeEnd = new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59); }
+        else if(period === 'last_month') { let d = new Date(); rangeStart = new Date(d.getFullYear(), d.getMonth()-1, 1); rangeEnd = new Date(d.getFullYear(), d.getMonth(), 0,23,59); }
+        else if(period === 'last_2months') { let d = new Date(); rangeStart = new Date(d.getFullYear(), d.getMonth()-2, 1); rangeEnd = new Date(d.getFullYear(), d.getMonth()+1, 0); }
+        else if(period === 'custom' && startDate && endDate) { rangeStart = startDate; rangeEnd = endDate; }
+        else return false;
+        try {
+            let response = await gapi.client.calendar.events.list({
+                calendarId: 'primary',
+                timeMin: rangeStart.toISOString(),
+                timeMax: rangeEnd.toISOString(),
+                singleEvents: true,
+                orderBy: 'startTime'
+            });
+            let events = response.result.items;
+            for(let ev of events) {
+                let startTime = ev.start.dateTime || ev.start.date;
+                let title = ev.summary || "Atendimento";
+                let description = ev.description || "";
+                let value = extractValueFromText(description + " " + title);
+                let eventId = ev.id;
+                let docId = `${currentUser.uid}_${eventId}`;
+                let existing = await db.collection('appointments').doc(docId).get();
+                let status = existing.exists ? existing.data().status : 'pending';
+                await db.collection('appointments').doc(docId).set({
+                    userId: currentUser.uid,
+                    eventId, title, start: startTime, value, status,
+                    lastSync: new Date()
+                }, { merge: true });
+            }
+            await loadAllAppointments();
+            refreshAllUI();
+            alert("Sincronização concluída!");
+        } catch(e) { console.error(e); alert("Erro ao sincronizar: "+e.message); }
+    }
+
+    async function loadAllAppointments() {
+        if(!currentUser) return;
+        let snapshot = await db.collection('appointments').where('userId', '==', currentUser.uid).get();
+        appointmentsMap.clear();
+        snapshot.forEach(doc => {
+            let data = doc.data();
+            let dateKey = new Date(data.start).toDateString();
+            if(!appointmentsMap.has(dateKey)) appointmentsMap.set(dateKey, []);
+            appointmentsMap.get(dateKey).push({ id: doc.id, ...data, status: data.status || 'pending' });
+        });
+    }
+
+    async function updateAppointmentStatus(docId, newStatus) {
+        await db.collection('appointments').doc(docId).update({ status: newStatus });
+        await loadAllAppointments();
+        refreshAllUI();
+    }
+
+    // ========== UI RENDER ==========
+    function refreshAllUI() { renderHome(); renderCalendarMonth(); renderFinance(); }
+    function renderHome() {
+        let todayStr = new Date().toDateString();
+        let todayAppts = appointmentsMap.get(todayStr) || [];
+        let count = todayAppts.length;
+        let revenue = todayAppts.reduce((s,a)=>s + (a.value||0),0);
+        document.getElementById('todayCount').innerText = count;
+        document.getElementById('todayRevenue').innerText = formatCurrency(revenue);
+        // 5 dias rolaveis
+        let baseDate = selectedHomeDate;
+        let daysArr = [];
+        for(let i=-2; i<=2; i++) { let d = new Date(baseDate); d.setDate(baseDate.getDate()+i); daysArr.push(d); }
+        let weekContainer = document.getElementById('weekDaysContainer');
+        weekContainer.innerHTML = '';
+        daysArr.forEach(d => {
+            let isToday = d.toDateString() === new Date().toDateString();
+            let appts = appointmentsMap.get(d.toDateString()) || [];
+            let card = document.createElement('div');
+            card.className = `day-card ${isToday ? 'today' : ''}`;
+            card.innerHTML = `<div class="weekday">${d.toLocaleDateString('pt-BR',{weekday:'short'})}</div><div class="daynum">${d.getDate()}</div><div style="font-size:10px">${appts.length} atend.</div>`;
+            card.onclick = () => { selectedHomeDate = d; renderHome(); };
+            weekContainer.appendChild(card);
+        });
+        let selectedAppts = appointmentsMap.get(selectedHomeDate.toDateString()) || [];
+        let listDiv = document.getElementById('dailyAppointmentsList');
+        listDiv.innerHTML = selectedAppts.length ? '' : '<div style="text-align:center; padding:20px;">Nenhum atendimento</div>';
+        selectedAppts.forEach(app => {
+            let time = app.start ? new Date(app.start).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '--:--';
+            let statusText = {pending:'Em aberto', paid:'Pago', credit:'Fiado'}[app.status];
+            let statusClass = {pending:'status-pending', paid:'status-paid', credit:'status-credit'}[app.status];
+            let div = document.createElement('div'); div.className='appt-item';
+            div.innerHTML = `<div class="appt-info"><h4>${app.title}</h4><p>🕒 ${time}</p><p>💰 ${formatCurrency(app.value||0)}</p></div>
+            <div class="status-badge ${statusClass}" data-id="${app.id}" data-status="${app.status}">${statusText} <i class="fas fa-chevron-down"></i></div>`;
+            div.querySelector('.status-badge').onclick = (e) => { e.stopPropagation(); cycleStatus(app.id, app.status); };
+            listDiv.appendChild(div);
+        });
+        updateWeeklyChart();
+    }
+    function cycleStatus(id, current) { let next = {pending:'paid', paid:'credit', credit:'pending'}[current]; updateAppointmentStatus(id, next); }
+    function updateWeeklyChart() {
+        let weekDays = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+        let today = new Date();
+        let startWeek = new Date(today); startWeek.setDate(today.getDate() - today.getDay());
+        let values = [];
+        for(let i=0;i<7;i++) { let d = new Date(startWeek); d.setDate(startWeek.getDate()+i); let apps = appointmentsMap.get(d.toDateString()) || []; let sum = apps.reduce((s,a)=>s+(a.status==='paid'? (a.value||0) : 0),0); values.push(sum); }
+        if(weeklyChart) weeklyChart.destroy();
+        let ctx = document.getElementById('weeklyChart').getContext('2d');
+        weeklyChart = new Chart(ctx, { type: 'line', data: { labels: weekDays, datasets: [{ label: 'Faturamento (R$)', data: values, borderColor: '#c47a6b', tension: 0.3, fill: false, pointBackgroundColor: '#e6a48f' }] }, options: { responsive: true, maintainAspectRatio: true } });
+    }
+    // calendário mensal
+    async function renderCalendarMonth() {
+        let year = currentCalendarMonth.getFullYear(), month = currentCalendarMonth.getMonth();
+        let firstDay = new Date(year, month, 1);
+        let startDate = new Date(firstDay); startDate.setDate(1 - firstDay.getDay());
+        let days = [];
+        for(let i=0;i<42;i++) { let d = new Date(startDate); d.setDate(startDate.getDate()+i); days.push(d); }
+        document.getElementById('monthYearLabel').innerText = currentCalendarMonth.toLocaleDateString('pt-BR',{month:'long', year:'numeric'});
+        let grid = document.getElementById('calendarGrid'); grid.innerHTML = '';
+        ['D','S','T','Q','Q','S','S'].forEach(day=>{ let el=document.createElement('div'); el.innerText=day; el.style.fontSize='0.7rem'; el.style.color='#b88a7a'; grid.appendChild(el); });
+        days.forEach(day => {
+            let isCurrentMonth = day.getMonth() === month;
+            let cell = document.createElement('div'); cell.className='cal-day'; if(!isCurrentMonth) cell.style.opacity='0.4';
+            if(day.toDateString() === new Date().toDateString()) cell.classList.add('today-cal');
+            cell.innerText = day.getDate();
+            if(day.toDateString() === selectedCalendarDate.toDateString()) cell.classList.add('selected');
+            cell.onclick = () => { selectedCalendarDate = day; renderCalendarMonth(); renderDayAppointments(day); };
+            grid.appendChild(cell);
+        });
+        renderDayAppointments(selectedCalendarDate);
+    }
+    function renderDayAppointments(date) {
+        let appts = appointmentsMap.get(date.toDateString()) || [];
+        document.getElementById('selectedDateLabel').innerText = date.toLocaleDateString('pt-BR');
+        let container = document.getElementById('selectedDayAppointments');
+        container.innerHTML = appts.length ? '' : '<div style="padding:20px; text-align:center">Sem atendimentos</div>';
+        appts.forEach(app => {
+            let time = app.start ? new Date(app.start).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '--:--';
+            let statusText = {pending:'Em aberto', paid:'Pago', credit:'Fiado'}[app.status];
+            let statusClass = {pending:'status-pending', paid:'status-paid', credit:'status-credit'}[app.status];
+            let div = document.createElement('div'); div.className='appt-item';
+            div.innerHTML = `<div><strong>${app.title}</strong><br><small>${time}</small><br>💰 ${formatCurrency(app.value||0)}</div>
+            <div class="status-badge ${statusClass}" data-id="${app.id}" data-status="${app.status}">${statusText}</div>`;
+            div.querySelector('.status-badge').onclick = (e) => { e.stopPropagation(); cycleStatus(app.id, app.status); };
+            container.appendChild(div);
+        });
+    }
+    // Financeiro
+    async function renderFinance() {
+        let now = new Date();
+        let allAppointments = [];
+        for(let list of appointmentsMap.values()) allAppointments.push(...list);
+        let todayStr = new Date().toDateString();
+        let receivedUntilToday = allAppointments.filter(a => a.status === 'paid' && new Date(a.start) <= new Date()).reduce((s,a)=>s+(a.value||0),0);
+        document.getElementById('totalReceivedUntilToday').innerText = formatCurrency(receivedUntilToday);
+        let currentMonth = now.getMonth(), currentYear = now.getFullYear();
+        let futureMonthSum = allAppointments.filter(a => { let d = new Date(a.start); return d.getMonth()===currentMonth && d.getFullYear()===currentYear && d >= now; }).reduce((s,a)=>s+(a.value||0),0);
+        document.getElementById('monthForecast').innerText = formatCurrency(futureMonthSum);
+        let paid = allAppointments.filter(a=>a.status==='paid').reduce((s,a)=>s+(a.value||0),0);
+        let pending = allAppointments.filter(a=>a.status==='pending').reduce((s,a)=>s+(a.value||0),0);
+        let credit = allAppointments.filter(a=>a.status==='credit').reduce((s,a)=>s+(a.value||0),0);
+        document.getElementById('sumPaid').innerText = formatCurrency(paid);
+        document.getElementById('sumPending').innerText = formatCurrency(pending);
+        document.getElementById('sumCredit').innerText = formatCurrency(credit);
+        if(pieChartInstance) pieChartInstance.destroy();
+        let pieCtx = document.getElementById('pieChart').getContext('2d');
+        pieChartInstance = new Chart(pieCtx, { type: 'pie', data: { labels: ['Recebido','Em aberto','Fiado'], datasets: [{ data: [paid,pending,credit], backgroundColor: ['#9bc48b','#f7bc7a','#e69a8f'] }] } });
+        // linha
+        if(trendChart) trendChart.destroy();
+        let lastDays = [];
+        for(let i=6;i>=0;i--) { let d = new Date(); d.setDate(d.getDate()-i); let sumDay = (appointmentsMap.get(d.toDateString()) || []).filter(a=>a.status==='paid').reduce((s,a)=>s+(a.value||0),0); lastDays.push(sumDay); }
+        let trendCtx = document.getElementById('monthlyTrendChart').getContext('2d');
+        trendChart = new Chart(trendCtx, { type: 'line', data: { labels: ['-6d','-5d','-4d','-3d','-2d','-1d','Hoje'], datasets: [{ label: 'Recebido diário', data: lastDays, borderColor: '#b45a48' }] } });
+    }
+    // inicialização login + google calendar
+    async function initGoogleCalendarAPI() {
+        await new Promise((resolve) => gapi.load('client', resolve));
+        await gapi.client.init({ apiKey: '', discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'] });
+        tokenClient = google.accounts.oauth2.initTokenClient({ client_id: '1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com', scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events', callback: (resp) => { if(resp.access_token) accessToken = resp.access_token; } });
+    }
+    document.getElementById('googleLoginBtn').onclick = async () => {
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+        setTimeout(async() => {
+            if(!accessToken) return alert("Permissão necessária");
+            const credential = firebase.auth.GoogleAuthProvider.credential(null, accessToken);
+            await auth.signInWithCredential(credential);
+        }, 800);
+    };
+    auth.onAuthStateChanged(async (user) => {
+        if(user) {
+            currentUser = user;
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('appContent').style.display = 'block';
+            document.getElementById('userAvatarImg').src = user.photoURL || 'https://ui-avatars.com/api/?background=c47a6b&color=fff&name='+user.displayName;
+            await loadAllAppointments();
+            refreshAllUI();
+            if(!accessToken) tokenClient.requestAccessToken({ prompt: '' });
+        } else { document.getElementById('loginScreen').style.display = 'flex'; document.getElementById('appContent').style.display = 'none'; }
+    });
+    // navegação
+    document.querySelectorAll('.nav-item').forEach(btn => { btn.addEventListener('click',()=>{ let screen = btn.dataset.screen; document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(screen+'Screen').classList.add('active'); }); });
+    document.getElementById('goToFullCalendarBtn').onclick = ()=> { document.querySelector('[data-screen="agenda"]').click(); };
+    document.getElementById('globalSyncBtn').onclick = ()=> { let period = prompt("Escolha período: 1-Mês atual, 2-Mês passado, 3-Últimos 2 meses, 4-Intervalo personalizado","1"); if(period==='1') syncCalendarEvents('current_month'); else if(period==='2') syncCalendarEvents('last_month'); else if(period==='3') syncCalendarEvents('last_2months'); else if(period==='4') alert("Funcionalidade custom via interface rápida"); else syncCalendarEvents('current_month'); };
+    document.getElementById('prevMonthBtn').onclick = ()=>{ currentCalendarMonth.setMonth(currentCalendarMonth.getMonth()-1); renderCalendarMonth(); };
+    document.getElementById('nextMonthBtn').onclick = ()=>{ currentCalendarMonth.setMonth(currentCalendarMonth.getMonth()+1); renderCalendarMonth(); };
+    initGoogleCalendarAPI();
+    // pré-set mês financeiro simples
+    let monthSelect = document.getElementById('financeMonthFilter');
+    for(let i=0;i<12;i++) { let opt = document.createElement('option'); opt.value=i; opt.innerText = new Date(2025,i).toLocaleString('pt-BR',{month:'long'}); monthSelect.appendChild(opt); }
+    monthSelect.value = new Date().getMonth();
+    monthSelect.onchange = ()=> renderFinance();
+    document.getElementById('customRangeBtn').onclick = ()=> alert("Filtro custom avançado: em breve");
+    // PWA manifest/service worker automático
+    (function registerPWA() {
+        let manifestObj = { name: "Controle Financeiro Studio", short_name: "Finanças Glam", start_url: ".", display: "standalone", theme_color: "#c47a6b", background_color: "#ffffff", icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle fill='%23c47a6b' cx='50' cy='50' r='50'/%3E%3Ctext x='50' y='67' text-anchor='middle' fill='white' font-size='50'%3E✂%3C/text%3E%3C/svg%3E", sizes: "any", type: "image/svg+xml" }] };
+        let blob = new Blob([JSON.stringify(manifestObj)], {type: 'application/json'}); let link = document.createElement('link'); link.rel = 'manifest'; link.href = URL.createObjectURL(blob); document.head.appendChild(link);
+        if('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(()=>{}); } // fallback
+    })();
+</script>
+</body>
+</html>
