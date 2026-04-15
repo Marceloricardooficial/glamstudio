@@ -1,0 +1,608 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Glam Studio - Controle Financeiro</title>
+    <meta name="theme-color" content="#ff4d8d">
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkdsYW0gU3R1ZGlvIiwKICAic2hvcnRfbmFtZSI6ICJHbGFtIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmZmZmZmYiLAogICJ0aGVtZV9jb2xvciI6ICIjZmY0ZDhkIiwKICAiaWNvbnMiOiBbCiAgICB7CiAgICAgICJzcmMiOiAiaHR0cHM6Ly9pY29ucz8iLAogICAgICAic2l6ZXMiOiAiMTkyeDE5MiIsCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIKICAgIH0KICBdCn0=">
+    
+    <!-- Google Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.0/lucide.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #ff4d8d; /* Rosa Elegante */
+            --secondary: #7c4dff; /* Roxo para detalhes */
+            --bg-light: #f8f9fa;
+            --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-light);
+            color: #1a1a1a;
+            -webkit-tap-highlight-color: transparent;
+            overflow-x: hidden;
+            margin-bottom: 80px;
+        }
+
+        .safe-top { padding-top: env(safe-area-inset-top); }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+        /* Estilo Customizado para o Calendário Rosa */
+        .pink-gradient {
+            background: linear-gradient(135deg, #ff4d8d 0%, #ff70a1 100%);
+        }
+
+        .calendar-day.active {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: 0 4px 10px rgba(255, 77, 141, 0.4);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .nav-active {
+            color: var(--primary);
+            transform: translateY(-5px);
+        }
+
+        .status-badge {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 99px;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        /* Animações */
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .animate-up { animation: slideUp 0.4s ease-out forwards; }
+
+        /* Loader */
+        #loader {
+            position: fixed;
+            inset: 0;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Scroll horizontal customizado */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Loader -->
+    <div id="loader"><div class="spinner"></div></div>
+
+    <!-- Login Screen (Hidden by Default after Login) -->
+    <div id="screen-login" class="fixed inset-0 z-[60] bg-white flex flex-col items-center justify-center p-8 text-center hidden">
+        <div class="w-24 h-24 pink-gradient rounded-3xl mb-6 flex items-center justify-center shadow-xl">
+            <i data-lucide="scissors" class="text-white w-12 h-12"></i>
+        </div>
+        <h1 class="text-3xl font-bold mb-2">Glam Studio</h1>
+        <p class="text-gray-500 mb-10">Controle sua agenda e finanças com elegância e praticidade.</p>
+        <button id="btn-login-google" class="w-full max-w-xs flex items-center justify-center gap-3 bg-white border border-gray-300 py-4 rounded-2xl font-semibold shadow-sm active:scale-95 transition-all">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" width="20">
+            Entrar com Google
+        </button>
+    </div>
+
+    <!-- Main Content Container -->
+    <main id="app-content" class="max-w-md mx-auto hidden">
+        
+        <!-- --- HOME SCREEN --- -->
+        <section id="view-home" class="p-6 pt-10 animate-up">
+            <header class="flex justify-between items-start mb-8">
+                <div class="flex items-center gap-3">
+                    <img id="user-photo" src="https://via.placeholder.com/50" class="w-12 h-12 rounded-full border-2 border-white shadow-md">
+                    <div>
+                        <p class="text-xs text-gray-500 font-medium">Bom dia,</p>
+                        <h2 id="user-name" class="text-lg font-bold">Carregando...</h2>
+                    </div>
+                </div>
+                <button class="p-2 bg-white rounded-xl shadow-sm"><i data-lucide="bell" class="w-5 h-5 text-gray-600"></i></button>
+            </header>
+
+            <!-- Status Cards -->
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <div class="bg-white p-4 rounded-3xl shadow-sm border border-gray-100">
+                    <div class="w-10 h-10 bg-pink-50 rounded-full flex items-center justify-center mb-3">
+                        <i data-lucide="users" class="w-5 h-5 text-pink-500"></i>
+                    </div>
+                    <p class="text-xs text-gray-500">Atendimentos</p>
+                    <h3 id="home-count" class="text-xl font-bold">0</h3>
+                </div>
+                <div class="bg-white p-4 rounded-3xl shadow-sm border border-gray-100">
+                    <div class="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center mb-3">
+                        <i data-lucide="dollar-sign" class="w-5 h-5 text-green-500"></i>
+                    </div>
+                    <p class="text-xs text-gray-500">Faturado Hoje</p>
+                    <h3 id="home-revenue" class="text-xl font-bold">R$ 0</h3>
+                </div>
+            </div>
+
+            <!-- Horizontal Calendar (Mini) -->
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-gray-800" id="home-month-year">Janeiro 2024</h3>
+                    <button class="text-pink-500 text-xs font-semibold">Ver tudo</button>
+                </div>
+                <div id="home-mini-calendar" class="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                    <!-- Gerado via JS -->
+                </div>
+            </div>
+
+            <!-- Lista de Hoje -->
+            <div class="mb-8">
+                <h3 class="font-bold mb-4 flex justify-between">
+                    <span>Atendimentos de Hoje</span>
+                    <button id="sync-btn" class="text-xs text-pink-500 flex items-center gap-1">
+                        <i data-lucide="refresh-cw" class="w-3 h-3"></i> Sincronizar
+                    </button>
+                </h3>
+                <div id="today-list" class="space-y-4">
+                    <!-- Itens da Lista -->
+                </div>
+            </div>
+
+            <!-- Gráfico Semanal -->
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 mb-10">
+                <h3 class="text-sm font-bold mb-4">Faturamento Semanal</h3>
+                <canvas id="weeklyChart" height="150"></canvas>
+            </div>
+        </section>
+
+        <!-- --- AGENDA SCREEN --- -->
+        <section id="view-agenda" class="hidden animate-up">
+            <div class="pink-gradient p-8 text-white rounded-b-[40px] shadow-lg mb-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 id="calendar-title" class="text-2xl font-bold">Maio 2024</h2>
+                    <div class="flex gap-2">
+                        <button onclick="changeMonth(-1)" class="p-2 bg-white/20 rounded-lg"><i data-lucide="chevron-left"></i></button>
+                        <button onclick="changeMonth(1)" class="p-2 bg-white/20 rounded-lg"><i data-lucide="chevron-right"></i></button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-7 text-center text-xs font-bold opacity-70 mb-4">
+                    <span>DOM</span><span>SEG</span><span>TER</span><span>QUA</span><span>QUI</span><span>SEX</span><span>SAB</span>
+                </div>
+                <div id="calendar-grid" class="grid grid-cols-7 gap-2 text-center text-sm font-medium">
+                    <!-- Gerado via JS -->
+                </div>
+            </div>
+
+            <div class="px-6 pb-20">
+                <div id="agenda-day-details" class="space-y-4">
+                    <div class="text-center py-10 text-gray-400">
+                        <i data-lucide="calendar" class="w-10 h-10 mx-auto mb-2 opacity-20"></i>
+                        <p>Selecione um dia para ver os detalhes</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- --- FINANCES SCREEN --- -->
+        <section id="view-finances" class="p-6 hidden animate-up">
+            <h2 class="text-2xl font-bold mb-6">Relatório Financeiro</h2>
+            
+            <div class="bg-gray-900 text-white p-6 rounded-[32px] shadow-2xl mb-8 relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-10"><i data-lucide="wallet" class="w-20 h-20"></i></div>
+                <p class="text-gray-400 text-xs font-medium mb-1">Total Faturado no Mês</p>
+                <h3 id="fin-total" class="text-3xl font-bold mb-4">R$ 0,00</h3>
+                <div class="flex items-center gap-2 text-green-400 text-xs">
+                    <i data-lucide="trending-up" class="w-4 h-4"></i>
+                    <span>Previsão: <span id="fin-predict">R$ 0</span></span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 mb-8">
+                <div class="bg-white p-3 rounded-2xl text-center shadow-sm">
+                    <p class="text-[10px] text-gray-500 uppercase font-bold">Recebido</p>
+                    <p id="fin-paid" class="text-green-500 font-bold text-sm">R$ 0</p>
+                </div>
+                <div class="bg-white p-3 rounded-2xl text-center shadow-sm">
+                    <p class="text-[10px] text-gray-500 uppercase font-bold">Aberto</p>
+                    <p id="fin-open" class="text-orange-400 font-bold text-sm">R$ 0</p>
+                </div>
+                <div class="bg-white p-3 rounded-2xl text-center shadow-sm">
+                    <p class="text-[10px] text-gray-500 uppercase font-bold">Fiado</p>
+                    <p id="fin-fiado" class="text-red-400 font-bold text-sm">R$ 0</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-3xl shadow-sm mb-8">
+                <h3 class="text-sm font-bold mb-6">Status dos Pagamentos</h3>
+                <div class="flex justify-center mb-6">
+                    <div class="w-40 h-40">
+                        <canvas id="financePieChart"></canvas>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center text-sm">
+                        <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-green-500"></div> Pago</div>
+                        <span id="label-paid" class="font-bold">0%</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-orange-400"></div> Em Aberto</div>
+                        <span id="label-open" class="font-bold">0%</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-red-400"></div> Fiado</div>
+                        <span id="label-fiado" class="font-bold">0%</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer Navigation -->
+        <nav class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 flex justify-around items-center h-20 px-4 safe-bottom z-50">
+            <button onclick="switchView('home')" id="nav-home" class="flex flex-col items-center gap-1 transition-all text-gray-400 nav-active">
+                <i data-lucide="home" class="w-6 h-6"></i>
+                <span class="text-[10px] font-bold">HOME</span>
+            </button>
+            <button onclick="switchView('agenda')" id="nav-agenda" class="flex flex-col items-center gap-1 transition-all text-gray-400">
+                <i data-lucide="calendar" class="w-6 h-6"></i>
+                <span class="text-[10px] font-bold">AGENDA</span>
+            </button>
+            
+            <div class="relative -top-3">
+                <div class="w-14 h-14 p-1 bg-white rounded-full shadow-lg border border-gray-100">
+                    <img id="nav-user-photo" src="https://via.placeholder.com/50" class="w-full h-full rounded-full object-cover">
+                </div>
+            </div>
+
+            <button onclick="switchView('finances')" id="nav-finances" class="flex flex-col items-center gap-1 transition-all text-gray-400">
+                <i data-lucide="pie-chart" class="w-6 h-6"></i>
+                <span class="text-[10px] font-bold">FINANÇAS</span>
+            </button>
+            <button id="btn-logout" class="flex flex-col items-center gap-1 transition-all text-gray-400">
+                <i data-lucide="log-out" class="w-6 h-6"></i>
+                <span class="text-[10px] font-bold">SAIR</span>
+            </button>
+        </nav>
+    </main>
+
+    <!-- Firebase e Logica do App -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, query, where, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+        // Configuração conforme fornecido
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+            authDomain: "glam-studio-8b65c.firebaseapp.com",
+            projectId: "glam-studio-8b65c",
+            storageBucket: "glam-studio-8b65c.firebasestorage.app",
+            messagingSenderId: "154294556895",
+            appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+        provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
+
+        let currentUser = null;
+        let appointments = [];
+        let currentCalendarDate = new Date();
+
+        // Inicializar Lucide Icons
+        lucide.createIcons();
+
+        // --- AUTH LOGIC ---
+        onAuthStateChanged(auth, (user) => {
+            const loader = document.getElementById('loader');
+            if (user) {
+                currentUser = user;
+                document.getElementById('screen-login').classList.add('hidden');
+                document.getElementById('app-content').classList.remove('hidden');
+                document.getElementById('user-name').innerText = user.displayName;
+                document.getElementById('user-photo').src = user.photoURL;
+                document.getElementById('nav-user-photo').src = user.photoURL;
+                
+                loadInitialData();
+            } else {
+                document.getElementById('screen-login').classList.remove('hidden');
+                document.getElementById('app-content').classList.add('hidden');
+            }
+            loader.style.opacity = '0';
+            setTimeout(() => loader.style.display = 'none', 500);
+        });
+
+        document.getElementById('btn-login-google').onclick = () => {
+            signInWithPopup(auth, provider).catch(err => console.error(err));
+        };
+
+        document.getElementById('btn-logout').onclick = () => {
+            signOut(auth);
+        };
+
+        // --- CORE NAVIGATION ---
+        window.switchView = (view) => {
+            ['home', 'agenda', 'finances'].forEach(v => {
+                document.getElementById(`view-${v}`).classList.add('hidden');
+                document.getElementById(`nav-${v}`).classList.remove('nav-active');
+            });
+            document.getElementById(`view-${view}`).classList.remove('hidden');
+            document.getElementById(`nav-${view}`).classList.add('nav-active');
+            
+            if (view === 'agenda') renderCalendar();
+            if (view === 'finances') renderFinances();
+        };
+
+        // --- DATA MANAGEMENT ---
+        async function loadInitialData() {
+            // No mundo real, aqui chamaríamos a API do Google Calendar.
+            // Para este protótipo funcional, vamos simular a importação baseada no que o código faria.
+            // E escutar o Firestore para as mudanças de status (Pago/Aberto/Fiado).
+            
+            const q = query(collection(db, "appointments"), where("userId", "==", currentUser.uid));
+            onSnapshot(q, (snapshot) => {
+                appointments = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+                if (appointments.length === 0) {
+                    generateMockData(); // Gerar alguns dados iniciais se estiver vazio
+                }
+                updateUI();
+            });
+        }
+
+        function generateMockData() {
+            // Função auxiliar para popular o app inicialmente com dados simulados "importados"
+            const mock = [
+                { title: "Corte e Escova - Ana Rita", value: 120, date: new Date().toISOString(), status: "pago", time: "10:30" },
+                { title: "Mechas - Juliana", value: 450, date: new Date().toISOString(), status: "aberto", time: "14:00" },
+                { title: "Manicure", value: 50, date: new Date().toISOString(), status: "fiado", time: "16:30" }
+            ];
+            
+            mock.forEach(async (item) => {
+                await setDoc(doc(collection(db, "appointments")), {
+                    ...item,
+                    userId: currentUser.uid
+                });
+            });
+        }
+
+        // --- UI UPDATES ---
+        function updateUI() {
+            renderHome();
+            if (!document.getElementById('view-agenda').classList.contains('hidden')) renderCalendar();
+            if (!document.getElementById('view-finances').classList.contains('hidden')) renderFinances();
+        }
+
+        function renderHome() {
+            const today = new Date().toISOString().split('T')[0];
+            const todayApps = appointments.filter(a => a.date.startsWith(today));
+            
+            const total = todayApps.reduce((acc, curr) => acc + curr.value, 0);
+            
+            document.getElementById('home-count').innerText = todayApps.length;
+            document.getElementById('home-revenue').innerText = `R$ ${total}`;
+            document.getElementById('home-month-year').innerText = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date());
+
+            // Mini Calendar
+            const mini = document.getElementById('home-mini-calendar');
+            mini.innerHTML = '';
+            for (let i = -2; i < 10; i++) {
+                const d = new Date();
+                d.setDate(d.getDate() + i);
+                const isActive = i === 0;
+                mini.innerHTML += `
+                    <div class="flex-shrink-0 flex flex-col items-center p-4 rounded-2xl border ${isActive ? 'calendar-day active' : 'bg-white border-gray-100'} w-14 transition-all">
+                        <span class="text-[10px] uppercase opacity-60 font-bold">${new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(d).replace('.', '')}</span>
+                        <span class="text-lg font-bold">${d.getDate()}</span>
+                    </div>
+                `;
+            }
+
+            // List
+            const list = document.getElementById('today-list');
+            list.innerHTML = '';
+            if (todayApps.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-400 py-4">Nenhum atendimento para hoje.</p>';
+            }
+            todayApps.forEach(app => {
+                const statusColors = { pago: 'bg-green-100 text-green-600', aberto: 'bg-orange-100 text-orange-600', fiado: 'bg-red-100 text-red-600' };
+                list.innerHTML += `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center animate-up">
+                        <div class="flex items-center gap-4">
+                            <div class="text-xs font-bold text-gray-400">${app.time}</div>
+                            <div>
+                                <h4 class="font-bold text-sm">${app.title}</h4>
+                                <span class="status-badge ${statusColors[app.status]}">${app.status}</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-bold text-pink-500 text-sm">R$ ${app.value}</p>
+                            <button onclick="toggleStatus('${app.id}', '${app.status}')" class="text-[10px] text-gray-400 underline">Alterar</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            renderCharts();
+        }
+
+        // --- CHARTS ---
+        let weeklyChart, pieChart;
+        function renderCharts() {
+            const ctxW = document.getElementById('weeklyChart')?.getContext('2d');
+            if (ctxW) {
+                if (weeklyChart) weeklyChart.destroy();
+                weeklyChart = new Chart(ctxW, {
+                    type: 'line',
+                    data: {
+                        labels: ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'],
+                        datasets: [{
+                            label: 'Faturamento',
+                            data: [120, 450, 300, 200, 600, 800, 150],
+                            borderColor: '#ff4d8d',
+                            backgroundColor: 'rgba(255, 77, 141, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            borderWidth: 3,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: { plugins: { legend: { display: false } }, scales: { y: { display: false }, x: { grid: { display: false } } } }
+                });
+            }
+        }
+
+        function renderFinances() {
+            const currentMonth = new Date().getMonth();
+            const monthApps = appointments.filter(a => new Date(a.date).getMonth() === currentMonth);
+            
+            const paid = monthApps.filter(a => a.status === 'pago').reduce((a, b) => a + b.value, 0);
+            const open = monthApps.filter(a => a.status === 'aberto').reduce((a, b) => a + b.value, 0);
+            const fiado = monthApps.filter(a => a.status === 'fiado').reduce((a, b) => a + b.value, 0);
+            const total = paid + open + fiado;
+
+            document.getElementById('fin-total').innerText = `R$ ${paid.toLocaleString('pt-BR')}`;
+            document.getElementById('fin-predict').innerText = `R$ ${total.toLocaleString('pt-BR')}`;
+            document.getElementById('fin-paid').innerText = `R$ ${paid}`;
+            document.getElementById('fin-open').innerText = `R$ ${open}`;
+            document.getElementById('fin-fiado').innerText = `R$ ${fiado}`;
+
+            const pPaid = total > 0 ? Math.round((paid / total) * 100) : 0;
+            const pOpen = total > 0 ? Math.round((open / total) * 100) : 0;
+            const pFiado = total > 0 ? Math.round((fiado / total) * 100) : 0;
+
+            document.getElementById('label-paid').innerText = pPaid + '%';
+            document.getElementById('label-open').innerText = pOpen + '%';
+            document.getElementById('label-fiado').innerText = pFiado + '%';
+
+            const ctxP = document.getElementById('financePieChart').getContext('2d');
+            if (pieChart) pieChart.destroy();
+            pieChart = new Chart(ctxP, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [pPaid || 1, pOpen, pFiado],
+                        backgroundColor: ['#22c55e', '#fb923c', '#f87171'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { cutout: '80%', plugins: { legend: { display: false } } }
+            });
+        }
+
+        // --- CALENDAR LOGIC ---
+        window.renderCalendar = () => {
+            const grid = document.getElementById('calendar-grid');
+            const title = document.getElementById('calendar-title');
+            grid.innerHTML = '';
+            
+            const month = currentCalendarDate.getMonth();
+            const year = currentCalendarDate.getFullYear();
+            title.innerText = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(currentCalendarDate);
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDay; i++) {
+                grid.innerHTML += `<div></div>`;
+            }
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const isToday = i === new Date().getDate() && month === new Date().getMonth();
+                grid.innerHTML += `
+                    <div onclick="selectCalendarDay(${i})" class="w-10 h-10 flex items-center justify-center rounded-xl cursor-pointer transition-all ${isToday ? 'bg-white text-pink-500 shadow-lg scale-110' : 'hover:bg-white/20'}">
+                        ${i}
+                    </div>
+                `;
+            }
+        };
+
+        window.changeMonth = (dir) => {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + dir);
+            renderCalendar();
+        };
+
+        window.selectCalendarDay = (day) => {
+            const selectedDate = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth(), day).toISOString().split('T')[0];
+            const apps = appointments.filter(a => a.date.startsWith(selectedDate));
+            const container = document.getElementById('agenda-day-details');
+            
+            container.innerHTML = `<h3 class="font-bold text-lg mb-4">Agenda: ${day}/${currentCalendarDate.getMonth()+1}</h3>`;
+            
+            if (apps.length === 0) {
+                container.innerHTML += '<p class="text-gray-400">Nenhum agendamento para este dia.</p>';
+                return;
+            }
+
+            apps.forEach(app => {
+                container.innerHTML += `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
+                        <div>
+                            <p class="text-xs text-gray-400 font-bold">${app.time}</p>
+                            <h4 class="font-bold">${app.title}</h4>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-bold text-pink-500">R$ ${app.value}</p>
+                            <span class="text-[10px] uppercase font-bold text-gray-400">${app.status}</span>
+                        </div>
+                    </div>
+                `;
+            });
+        };
+
+        // --- ACTION LOGIC ---
+        window.toggleStatus = async (id, current) => {
+            const states = ['pago', 'aberto', 'fiado'];
+            const next = states[(states.indexOf(current) + 1) % states.length];
+            await updateDoc(doc(db, "appointments", id), { status: next });
+        };
+
+        // Sincronização Simulada (Em um app real, integraria com gapi.client.calendar)
+        document.getElementById('sync-btn').onclick = () => {
+            const btn = document.getElementById('sync-btn');
+            btn.innerHTML = '<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Sincronizando...';
+            lucide.createIcons();
+            
+            setTimeout(() => {
+                btn.innerHTML = '<i data-lucide="check" class="w-3 h-3"></i> Atualizado';
+                lucide.createIcons();
+                setTimeout(() => {
+                    btn.innerHTML = '<i data-lucide="refresh-cw" class="w-3 h-3"></i> Sincronizar';
+                    lucide.createIcons();
+                }, 2000);
+            }, 1500);
+        };
+
+    </script>
+</body>
+</html>
+
+```
