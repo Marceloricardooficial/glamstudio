@@ -1,0 +1,540 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Glam Studio - Controle Financeiro</title>
+    <!-- Tailwind para Estilização Rápida e Moderna -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --primary: #ec4899; /* Rosa Moderno */
+            --primary-light: #fdf2f8;
+            --bg-app: #f8fafc;
+            --text-dark: #1e293b;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-app);
+            color: var(--text-dark);
+            margin: 0;
+            padding-bottom: 80px; /* Espaço para menu fixo */
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .custom-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        }
+
+        .active-nav {
+            color: var(--primary) !important;
+        }
+
+        .active-nav::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            width: 4px;
+            height: 4px;
+            background: var(--primary);
+            border-radius: 50%;
+        }
+
+        .day-card.active {
+            background-color: var(--primary);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .status-badge {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 99px;
+            font-weight: 600;
+        }
+
+        .status-pago { background: #dcfce7; color: #166534; }
+        .status-aberto { background: #fef9c3; color: #854d0e; }
+        .status-fiado { background: #fee2e2; color: #991b1b; }
+
+        /* Esconder scrollbars */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Animações simples */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Loading Spinner */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- OVERLAY DE LOGIN -->
+    <div id="login-screen" class="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center p-8 text-center">
+        <div class="mb-8 p-6 bg-pink-50 rounded-full">
+            <i data-lucide="scissors" class="w-16 h-16 text-pink-500"></i>
+        </div>
+        <h1 class="text-3xl font-bold mb-2">Glam Studio</h1>
+        <p class="text-gray-500 mb-10">Controle financeiro e agenda para profissionais da beleza.</p>
+        
+        <button onclick="handleAuth()" class="flex items-center gap-3 bg-white border border-gray-200 px-6 py-4 rounded-2xl custom-shadow hover:bg-gray-50 transition-all w-full max-w-xs justify-center font-semibold">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/pwa_google_signin_light.png" class="w-5" alt="Google">
+            Entrar com Google
+        </button>
+    </div>
+
+    <!-- CABEÇALHO GLOBAL -->
+    <header class="p-6 flex justify-between items-center bg-white sticky top-0 z-40">
+        <button class="p-2"><i data-lucide="menu"></i></button>
+        <div class="text-center">
+            <p id="header-date" class="text-xs font-bold text-gray-400 uppercase tracking-widest">ABRIL 2026</p>
+            <h2 id="view-title" class="text-lg font-bold">Home</h2>
+        </div>
+        <button class="p-2 relative">
+            <i data-lucide="bell"></i>
+            <span class="absolute top-2 right-2 w-2 h-2 bg-pink-500 rounded-full"></span>
+        </button>
+    </header>
+
+    <!-- CONTEÚDO DINÂMICO -->
+    <main id="app-content" class="px-6 py-2">
+        <!-- O conteúdo será injetado pelo JavaScript (Home, Agenda ou Finanças) -->
+    </main>
+
+    <!-- NAVEGAÇÃO RODAPÉ -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-8 py-4 flex justify-between items-center z-50">
+        <button onclick="changeView('home')" id="nav-home" class="flex flex-col items-center gap-1 relative text-gray-400">
+            <i data-lucide="layout-grid" class="w-6 h-6"></i>
+        </button>
+        <button onclick="changeView('agenda')" id="nav-agenda" class="flex flex-col items-center gap-1 relative text-gray-400">
+            <i data-lucide="calendar" class="w-6 h-6"></i>
+        </button>
+        
+        <!-- Foto de Perfil Centralizada -->
+        <div class="relative -top-6">
+            <img id="user-photo" src="https://via.placeholder.com/150" class="w-14 h-14 rounded-full border-4 border-white custom-shadow object-cover bg-gray-200" alt="Perfil">
+            <button onclick="syncCalendar()" class="absolute -bottom-1 -right-1 bg-pink-500 text-white p-1.5 rounded-full border-2 border-white shadow-lg">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+            </button>
+        </div>
+
+        <button onclick="changeView('finance')" id="nav-finance" class="flex flex-col items-center gap-1 relative text-gray-400">
+            <i data-lucide="pie-chart" class="w-6 h-6"></i>
+        </button>
+        <button onclick="logout()" class="flex flex-col items-center gap-1 text-gray-400">
+            <i data-lucide="log-out" class="w-6 h-6"></i>
+        </button>
+    </nav>
+
+    <!-- SCRIPTS DE CONFIGURAÇÃO -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, collection, query, where, onSnapshot, updateDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        // --- CONFIGURAÇÃO FORNECIDA ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+            authDomain: "glam-studio-8b65c.firebaseapp.com",
+            projectId: "glam-studio-8b65c",
+            storageBucket: "glam-studio-8b65c.firebasestorage.app",
+            messagingSenderId: "154294556895",
+            appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+        provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
+
+        // Estado Global
+        let currentUser = null;
+        let currentView = 'home';
+        let appointments = [];
+        let selectedDate = new Date();
+
+        // Inicialização
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('user-photo').src = user.photoURL || 'https://via.placeholder.com/150';
+                renderCurrentView();
+                // Simulação de carregamento inicial
+                fetchCalendarData();
+            } else {
+                document.getElementById('login-screen').classList.remove('hidden');
+            }
+        });
+
+        // --- FUNÇÕES DE NAVEGAÇÃO ---
+        window.changeView = (view) => {
+            currentView = view;
+            renderCurrentView();
+        };
+
+        function renderCurrentView() {
+            const container = document.getElementById('app-content');
+            const title = document.getElementById('view-title');
+            
+            // Update Icons
+            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active-nav'));
+            const activeBtn = document.getElementById(`nav-${currentView}`);
+            if(activeBtn) activeBtn.classList.add('active-nav');
+
+            container.innerHTML = '';
+            
+            switch(currentView) {
+                case 'home':
+                    title.innerText = 'Home';
+                    renderHome(container);
+                    break;
+                case 'agenda':
+                    title.innerText = 'Agenda';
+                    renderAgenda(container);
+                    break;
+                case 'finance':
+                    title.innerText = 'Finanças';
+                    renderFinance(container);
+                    break;
+            }
+            lucide.createIcons();
+        }
+
+        // --- VIEW: HOME ---
+        function renderHome(container) {
+            const dailyTotal = appointments.filter(a => isSameDay(a.date, new Date()))
+                                           .reduce((acc, curr) => acc + curr.value, 0);
+            const dailyCount = appointments.filter(a => isSameDay(a.date, new Date())).length;
+
+            container.innerHTML = `
+                <div class="fade-in">
+                    <!-- Cards de Resumo -->
+                    <div class="grid grid-cols-2 gap-4 mb-8">
+                        <div class="bg-white p-5 rounded-3xl custom-shadow">
+                            <div class="bg-pink-50 text-pink-500 w-10 h-10 rounded-2xl flex items-center justify-center mb-3">
+                                <i data-lucide="users" class="w-5 h-5"></i>
+                            </div>
+                            <p class="text-xs font-semibold text-gray-400">Atendimentos</p>
+                            <h3 class="text-2xl font-bold">${dailyCount}</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-3xl custom-shadow">
+                            <div class="bg-green-50 text-green-500 w-10 h-10 rounded-2xl flex items-center justify-center mb-3">
+                                <i data-lucide="dollar-sign" class="w-5 h-5"></i>
+                            </div>
+                            <p class="text-xs font-semibold text-gray-400">Total Previsto</p>
+                            <h3 class="text-2xl font-bold">R$ ${dailyTotal}</h3>
+                        </div>
+                    </div>
+
+                    <!-- Seletor de Data Horizontal -->
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="font-bold">Próximos dias</h4>
+                        <button class="text-xs text-pink-500 font-bold uppercase">Ver Todos</button>
+                    </div>
+                    <div class="flex gap-4 overflow-x-auto no-scrollbar pb-4 mb-6" id="horizontal-calendar">
+                        ${generateHorizontalDays()}
+                    </div>
+
+                    <!-- Lista de Atendimentos -->
+                    <h4 class="font-bold mb-4">Agenda de Hoje</h4>
+                    <div class="space-y-4" id="home-appointments">
+                        ${renderAppointmentList(appointments.filter(a => isSameDay(a.date, new Date())))}
+                    </div>
+
+                    <!-- Gráfico de Faturamento Semanal -->
+                    <div class="mt-8 bg-white p-6 rounded-3xl custom-shadow mb-10">
+                        <h4 class="font-bold mb-4">Faturamento Semanal</h4>
+                        <canvas id="revenueChart" height="150"></canvas>
+                    </div>
+                </div>
+            `;
+            initChart();
+        }
+
+        // --- VIEW: AGENDA ---
+        function renderAgenda(container) {
+            container.innerHTML = `
+                <div class="fade-in bg-white p-6 rounded-3xl custom-shadow mb-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <button class="p-2"><i data-lucide="chevron-left"></i></button>
+                        <h3 class="font-bold text-lg">Abril 2026</h3>
+                        <button class="p-2"><i data-lucide="chevron-right"></i></button>
+                    </div>
+                    <div class="grid grid-cols-7 gap-2 text-center text-xs font-bold text-gray-400 mb-4">
+                        <div>DOM</div><div>SEG</div><div>TER</div><div>QUA</div><div>QUI</div><div>SEX</div><div>SAB</div>
+                    </div>
+                    <div class="grid grid-cols-7 gap-y-4 text-center text-sm">
+                        ${generateCalendarGrid()}
+                    </div>
+                </div>
+
+                <div class="fade-in p-6 bg-pink-500 rounded-3xl text-white min-h-[300px]">
+                    <h4 class="font-bold uppercase tracking-wider text-xs mb-6 text-pink-100">Próximos Compromissos</h4>
+                    <div class="space-y-6">
+                        ${renderAgendaItems()}
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- VIEW: FINANÇAS ---
+        function renderFinance(container) {
+            const monthlyTotal = appointments.reduce((acc, curr) => acc + curr.value, 0);
+            const paidTotal = appointments.filter(a => a.status === 'pago').reduce((acc, curr) => acc + curr.value, 0);
+            const pendingTotal = appointments.filter(a => a.status === 'aberto').reduce((acc, curr) => acc + curr.value, 0);
+            const fiadoTotal = appointments.filter(a => a.status === 'fiado').reduce((acc, curr) => acc + curr.value, 0);
+
+            container.innerHTML = `
+                <div class="fade-in">
+                    <!-- Card Principal -->
+                    <div class="bg-gray-900 text-white p-8 rounded-[40px] custom-shadow mb-8 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-4 opacity-10">
+                            <i data-lucide="wallet" class="w-32 h-32"></i>
+                        </div>
+                        <p class="text-sm font-medium text-gray-400 mb-1">Faturamento Mensal</p>
+                        <h2 class="text-4xl font-bold mb-6">R$ ${monthlyTotal.toLocaleString('pt-BR')}</h2>
+                        
+                        <div class="flex gap-4">
+                            <div class="bg-white/10 p-3 rounded-2xl flex-1">
+                                <p class="text-[10px] text-gray-400 uppercase font-bold">Hoje</p>
+                                <p class="text-lg font-bold">R$ 450</p>
+                            </div>
+                            <div class="bg-white/10 p-3 rounded-2xl flex-1">
+                                <p class="text-[10px] text-gray-400 uppercase font-bold">Status</p>
+                                <p class="text-lg font-bold text-green-400">+12%</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico de Pizza -->
+                    <div class="bg-white p-6 rounded-3xl custom-shadow mb-8">
+                        <h4 class="font-bold mb-6">Distribuição de Recebíveis</h4>
+                        <div class="flex items-center gap-6">
+                            <div class="w-32 h-32">
+                                <canvas id="statusDonut"></canvas>
+                            </div>
+                            <div class="flex-1 space-y-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                                    <span class="text-xs font-semibold">Pago: R$ ${paidTotal}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="w-3 h-3 rounded-full bg-yellow-400"></span>
+                                    <span class="text-xs font-semibold">Pendente: R$ ${pendingTotal}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                                    <span class="text-xs font-semibold">Fiado: R$ ${fiadoTotal}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filtros -->
+                    <div class="flex gap-3 mb-8">
+                        <button class="bg-white px-4 py-2 rounded-xl text-xs font-bold border border-gray-100 custom-shadow">Este Mês</button>
+                        <button class="bg-gray-100 px-4 py-2 rounded-xl text-xs font-bold text-gray-500">Filtrar por Data</button>
+                    </div>
+                </div>
+            `;
+            initDonutChart(paidTotal, pendingTotal, fiadoTotal);
+        }
+
+        // --- HELPERS E LÓGICA DE NEGÓCIO ---
+
+        function isSameDay(d1, d2) {
+            return d1.getDate() === d2.getDate() && 
+                   d1.getMonth() === d2.getMonth() && 
+                   d1.getFullYear() === d2.getFullYear();
+        }
+
+        function generateHorizontalDays() {
+            const days = [];
+            const weekDays = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
+            const today = new Date();
+
+            for(let i = 0; i < 7; i++) {
+                const date = new Date();
+                date.setDate(today.getDate() + i);
+                const isActive = i === 0;
+                days.push(`
+                    <div class="day-card flex-shrink-0 w-16 py-4 rounded-3xl flex flex-col items-center justify-center transition-all ${isActive ? 'active shadow-lg shadow-pink-200' : 'bg-white text-gray-400'}">
+                        <span class="text-[10px] font-bold mb-1">${weekDays[date.getDay()]}</span>
+                        <span class="text-lg font-bold">${date.getDate()}</span>
+                    </div>
+                `);
+            }
+            return days.join('');
+        }
+
+        function generateCalendarGrid() {
+            let cells = [];
+            // Dias mock para abril de 2026 (começa na quarta)
+            for(let i = 0; i < 3; i++) cells.push('<div></div>');
+            for(let i = 1; i <= 30; i++) {
+                const isSelected = i === 10;
+                cells.push(`
+                    <div class="relative py-2 ${isSelected ? 'text-white' : ''}">
+                        ${isSelected ? '<div class="absolute inset-0 bg-pink-500 rounded-full scale-75 -z-10"></div>' : ''}
+                        ${i}
+                    </div>
+                `);
+            }
+            return cells.join('');
+        }
+
+        function renderAppointmentList(list) {
+            if(list.length === 0) return `<p class="text-gray-400 text-sm italic py-4">Nenhum atendimento para este dia.</p>`;
+            
+            return list.map(item => `
+                <div class="bg-white p-5 rounded-3xl custom-shadow flex items-center justify-between border-l-4 border-pink-500">
+                    <div class="flex items-center gap-4">
+                        <div class="text-center min-w-[50px]">
+                            <p class="text-xs font-bold text-gray-400 uppercase">${item.time}</p>
+                        </div>
+                        <div>
+                            <h5 class="font-bold text-sm">${item.client}</h5>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="status-badge status-${item.status}">${item.status.toUpperCase()}</span>
+                                <span class="text-[10px] text-gray-400">R$ ${item.value}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="text-gray-300"><i data-lucide="more-vertical" class="w-5 h-5"></i></button>
+                </div>
+            `).join('');
+        }
+
+        function renderAgendaItems() {
+            return appointments.slice(0, 3).map(item => `
+                <div class="flex gap-4">
+                    <div class="flex flex-col items-center">
+                        <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center font-bold text-sm">${item.date.getDate()}</div>
+                        <div class="w-0.5 h-full bg-white/10 mt-2"></div>
+                    </div>
+                    <div class="flex-1 pb-6">
+                        <h5 class="font-bold">${item.client}</h5>
+                        <p class="text-pink-100 text-xs">${item.time} • R$ ${item.value}</p>
+                        <div class="flex gap-2 mt-3">
+                            <button class="bg-white/20 text-xs py-1 px-3 rounded-lg border border-white/10">Marcar Pago</button>
+                            <button class="bg-white/20 text-xs py-1 px-3 rounded-lg border border-white/10">Editar</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- MOCK DATA E SINCRO ---
+        async function fetchCalendarData() {
+            // No mundo real, aqui usaríamos gapi para buscar do Google Calendar
+            // Para o design e funcionalidade inicial, simularemos os dados interpretados
+            appointments = [
+                { id: '1', client: 'Marina Silva (Corte R$ 120)', date: new Date(), time: '09:00', value: 120, status: 'pago' },
+                { id: '2', client: 'Ana Paula - Mechas R$ 350', date: new Date(), time: '11:30', value: 350, status: 'aberto' },
+                { id: '3', client: 'Carla Dias', date: new Date(), time: '15:00', value: 80, status: 'fiado' },
+                { id: '4', client: 'Bruna Marquezine', date: new Date(), time: '17:00', value: 200, status: 'aberto' }
+            ];
+            renderCurrentView();
+        }
+
+        window.syncCalendar = async () => {
+            // Implementação do Google OAuth e Calendar Fetch aqui
+            console.log("Sincronizando com Google Calendar...");
+            // Exibir loading momentâneo
+            const btn = document.querySelector('nav button .lucide-refresh-cw');
+            btn.classList.add('animate-spin');
+            setTimeout(() => {
+                btn.classList.remove('animate-spin');
+                fetchCalendarData();
+            }, 1500);
+        };
+
+        // --- CHART JS INITS ---
+        function initChart() {
+            const ctx = document.getElementById('revenueChart');
+            if(!ctx) return;
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'],
+                    datasets: [{
+                        data: [450, 600, 300, 800, 1200, 1500, 0],
+                        borderColor: '#ec4899',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        fill: true,
+                        backgroundColor: 'rgba(236, 72, 153, 0.05)'
+                    }]
+                },
+                options: {
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { display: false },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function initDonutChart(paid, pending, fiado) {
+            const ctx = document.getElementById('statusDonut');
+            if(!ctx) return;
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [paid, pending, fiado],
+                        backgroundColor: ['#22c55e', '#facc15', '#ef4444'],
+                        borderWidth: 0,
+                        cutout: '70%'
+                    }]
+                },
+                options: { cutoutPercentage: 80, plugins: { legend: { display: false } } }
+            });
+        }
+
+        window.handleAuth = async () => {
+            try {
+                const result = await signInWithPopup(auth, provider);
+                const credential = GoogleAuthProvider.credentialFromResult(result);
+                const token = credential.accessToken;
+                // Guardar token para chamadas de API do Calendar
+                localStorage.setItem('google_token', token);
+            } catch (error) {
+                console.error("Auth error", error);
+            }
+        };
+
+        window.logout = () => signOut(auth);
+
+    </script>
+</body>
+</html>
+
+```
