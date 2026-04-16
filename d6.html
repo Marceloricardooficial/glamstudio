@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Glam Studio - Controle Financeiro</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS + Lucide Icons + Chart.js -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.0/lucide.min.js"></script>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Google API Client (para Calendar) -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client.js"></script>
+
+    <style>
+        :root {
+            --primary: #ff4d8d;
+            --primary-dark: #e63e7a;
+            --primary-soft: #fff0f5;
+            --bg-body: #f8f9fa;
+        }
+        * { font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background-color: var(--bg-body); -webkit-tap-highlight-color: transparent; }
+        .date-scroll::-webkit-scrollbar { display: none; }
+        .date-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
+        .cal-day {
+            aspect-ratio: 1/1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 60px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .cal-day.selected { background: var(--primary); color: white; box-shadow: 0 4px 8px rgba(255,77,141,0.25); }
+        .cal-day.other-month { opacity: 0.4; }
+        .cal-day.today-cal { border: 2px solid var(--primary); background: #fff0f5; }
+        .appointment-card { transition: all 0.2s ease; }
+        .status-badge { cursor: pointer; }
+        .bottom-nav-container {
+            position: fixed;
+            bottom: 20px; left: 20px; right: 20px;
+            z-index: 100;
+        }
+        .bottom-nav {
+            background: linear-gradient(135deg, var(--primary) 0%, #ff70a1 100%);
+            height: 70px;
+            border-radius: 40px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 15px 35px rgba(255, 77, 141, 0.3);
+            padding: 0 12px;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 10px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+            border-radius: 20px;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        .nav-item.active { color: white; background: rgba(0,0,0,0.15); }
+        .fab-button {
+            width: 56px;
+            height: 56px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+            margin-top: -35px;
+            border: 3px solid var(--primary);
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+        .fab-button:active { transform: scale(0.92); }
+        .login-overlay {
+            position: fixed;
+            inset: 0;
+            background: white;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        canvas { max-height: 180px; width: 100% !important; }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            text-align: center;
+            padding: 12px;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            z-index: 150;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        /* Modal estilizado */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            z-index: 300;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            visibility: hidden;
+            opacity: 0;
+            transition: visibility 0.2s, opacity 0.2s;
+        }
+        .modal-overlay.active {
+            visibility: visible;
+            opacity: 1;
+        }
+        .modal-container {
+            background: white;
+            border-radius: 32px;
+            width: 85%;
+            max-width: 320px;
+            padding: 24px 20px;
+            text-align: center;
+            box-shadow: 0 25px 40px rgba(0,0,0,0.2);
+        }
+        .modal-container h3 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+        .modal-option {
+            background: #f8fafc;
+            border-radius: 60px;
+            padding: 12px;
+            margin: 10px 0;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #f0e4de;
+        }
+        .modal-option:active { background: #ffeef4; transform: scale(0.97); }
+        .modal-close {
+            margin-top: 16px;
+            color: #aaa;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        /* Seletor de mês/ano */
+        .month-selector {
+            background: white;
+            border-radius: 40px;
+            padding: 8px 12px;
+            font-weight: 600;
+            border: 1px solid #ffe0e8;
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body class="pb-32">
+
+    <!-- Tela de login -->
+    <div id="loginScreen" class="login-overlay">
+        <div class="text-center px-6">
+            <div class="w-24 h-24 bg-pink-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="scissors" class="w-12 h-12 text-pink-500"></i>
+            </div>
+            <h1 class="text-2xl font-extrabold text-gray-800">Glam Studio</h1>
+            <p class="text-gray-400 text-sm mt-2">Controle financeiro e agenda profissional</p>
+        </div>
+        <button id="googleLoginBtn" class="bg-white border border-gray-200 px-8 py-3 rounded-full flex items-center gap-3 shadow-md hover:shadow-lg transition">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
+            <span class="font-semibold text-gray-700">Entrar com Google</span>
+        </button>
+        <p class="text-[10px] text-gray-400">Acesso ao Google Calendar para sincronizar agendamentos</p>
+        <div id="loginError" class="text-red-500 text-xs hidden"></div>
+    </div>
+
+    <!-- Modal de seleção de período para sincronização -->
+    <div id="syncPeriodModal" class="modal-overlay">
+        <div class="modal-container">
+            <i data-lucide="calendar-sync" class="w-10 h-10 text-pink-500 mx-auto mb-2"></i>
+            <h3>Sincronizar Agenda</h3>
+            <p class="text-xs text-gray-500 mb-3">Escolha o período para importar seus eventos</p>
+            <div class="modal-option" data-period="current_month">📅 Mês atual</div>
+            <div class="modal-option" data-period="last_month">📆 Último mês</div>
+            <div class="modal-option" data-period="last_2months">🗓️ Últimos 2 meses</div>
+            <div class="modal-option" data-period="custom">⚙️ Intervalo personalizado (em breve)</div>
+            <div class="modal-close" id="closeModalBtn">Cancelar</div>
+        </div>
+    </div>
+
+    <!-- Conteúdo principal -->
+    <div id="appContent" style="display: none;">
+        <header class="p-5 pb-2 bg-white border-b border-pink-50">
+            <div class="flex justify-between items-center">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="calendar-days" class="w-5 h-5 text-pink-500"></i>
+                        <h2 id="currentMonthHeader" class="text-xl font-extrabold text-gray-800">Abril 2025</h2>
+                    </div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Agenda & Faturamento</p>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <button id="globalSyncBtn" class="bg-pink-50 p-2 rounded-full text-pink-500 active:scale-95 transition">
+                        <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+                    </button>
+                    <div class="relative">
+                        <div class="w-12 h-12 rounded-2xl overflow-hidden ring-4 ring-white shadow-md">
+                            <img id="userAvatarImg" src="" alt="perfil" class="w-full h-full object-cover">
+                        </div>
+                        <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- TELA HOME -->
+        <div id="homeScreen" class="screen px-5 pt-4">
+            <div class="flex gap-4 mb-6">
+                <div class="flex-1 bg-white rounded-2xl p-4 shadow-sm border border-pink-50">
+                    <i data-lucide="users" class="w-5 h-5 text-pink-400 mb-1"></i>
+                    <p class="text-[10px] text-gray-400 font-semibold">ATEND. HOJE</p>
+                    <p id="todayCountHome" class="text-2xl font-extrabold text-gray-800">0</p>
+                </div>
+                <div class="flex-1 bg-white rounded-2xl p-4 shadow-sm border border-pink-50">
+                    <i data-lucide="braces" class="w-5 h-5 text-pink-400 mb-1"></i>
+                    <p class="text-[10px] text-gray-400 font-semibold">FATURADO HOJE</p>
+                    <p id="todayRevenueHome" class="text-xl font-extrabold text-gray-800">R$ 0</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1 mb-4">
+                <button id="prevWeekBtn" class="p-2 rounded-full bg-white shadow-sm"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                <div id="dateSelectorContainer" class="flex-1 overflow-x-auto date-scroll flex gap-3 pb-2"></div>
+                <button id="nextWeekBtn" class="p-2 rounded-full bg-white shadow-sm"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+            </div>
+
+            <div class="flex justify-between items-center mt-2 mb-3">
+                <h3 class="text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="clock" class="w-3 h-3"></i> AGENDAMENTOS
+                </h3>
+                <span id="appointmentCountBadge" class="text-[10px] font-bold text-pink-500 px-2 py-1 bg-pink-50 rounded-full">0</span>
+            </div>
+            <div id="dailyAppointmentsList" class="space-y-3"></div>
+
+            <div class="mt-8 bg-white rounded-2xl p-3 shadow-sm">
+                <p class="text-xs font-bold text-gray-500 mb-2">📈 Faturamento desta semana</p>
+                <canvas id="weeklyChartHome" height="130"></canvas>
+            </div>
+        </div>
+
+        <!-- TELA AGENDA (com navegação entre meses melhorada) -->
+        <div id="agendaScreen" class="screen px-5 pt-4" style="display: none;">
+            <!-- Controles de navegação de mês -->
+            <div class="flex justify-between items-center mb-4">
+                <button id="prevMonthBtn" class="bg-pink-50 p-2 rounded-full shadow-sm w-10 h-10 flex items-center justify-center">
+                    <i data-lucide="chevron-left" class="w-5 h-5 text-pink-500"></i>
+                </button>
+                <div class="flex gap-2 items-center">
+                    <h3 id="monthYearLabel" class="text-xl font-bold text-gray-800"></h3>
+                    <select id="monthYearSelector" class="month-selector text-sm ml-2">
+                        <!-- Opções serão preenchidas via JS -->
+                    </select>
+                </div>
+                <button id="nextMonthBtn" class="bg-pink-50 p-2 rounded-full shadow-sm w-10 h-10 flex items-center justify-center">
+                    <i data-lucide="chevron-right" class="w-5 h-5 text-pink-500"></i>
+                </button>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+            <div class="mt-6">
+                <p class="text-sm font-bold text-gray-700 mb-2">Atendimentos em <span id="selectedDateLabel" class="text-pink-500"></span></p>
+                <div id="selectedDayAppointments" class="space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- TELA FINANCEIRA -->
+        <div id="financaScreen" class="screen px-5 pt-4" style="display: none;">
+            <div class="bg-gradient-to-r from-pink-50 to-white rounded-3xl p-5 shadow-sm border border-pink-100 mb-5">
+                <p class="text-xs text-gray-500">💰 TOTAL FATURADO (ATÉ HOJE)</p>
+                <p id="totalReceivedUntilToday" class="text-3xl font-extrabold text-gray-800">R$ 0</p>
+                <p class="text-xs text-gray-400 mt-1">📈 Previsão do mês: <span id="monthForecast" class="font-bold text-pink-500">R$ 0</span></p>
+            </div>
+            <div class="flex gap-2 mb-4">
+                <select id="financeMonthFilter" class="flex-1 bg-white border border-pink-100 rounded-full px-4 py-2 text-sm"></select>
+                <button id="customRangeBtn" class="bg-pink-100 text-pink-600 px-4 rounded-full text-sm">Intervalo</button>
+            </div>
+            <div class="flex justify-between bg-white rounded-2xl p-4 shadow-sm mb-5">
+                <div><p class="text-[10px] text-gray-400">✅ RECEBIDO</p><p id="sumPaid" class="font-extrabold">R$0</p></div>
+                <div><p class="text-[10px] text-gray-400">⏳ EM ABERTO</p><p id="sumPending" class="font-extrabold">R$0</p></div>
+                <div><p class="text-[10px] text-gray-400">📝 FIADO</p><p id="sumCredit" class="font-extrabold">R$0</p></div>
+            </div>
+            <div class="bg-white rounded-2xl p-3 shadow-sm mb-5">
+                <canvas id="pieChartFinance" height="150"></canvas>
+            </div>
+            <div class="bg-white rounded-2xl p-3 shadow-sm">
+                <canvas id="trendChartFinance" height="140"></canvas>
+            </div>
+        </div>
+
+        <div class="bottom-nav-container">
+            <nav class="bottom-nav">
+                <button class="nav-item" data-screen="home">
+                    <i data-lucide="grid-3x3" class="w-5 h-5"></i>
+                    <span class="mt-0.5 text-[9px]">HOME</span>
+                </button>
+                <button class="nav-item" data-screen="agenda">
+                    <i data-lucide="calendar" class="w-5 h-5"></i>
+                    <span>AGENDA</span>
+                </button>
+                
+                <button id="syncFab" class="fab-button">
+                    <i data-lucide="refresh-cw" class="w-7 h-7"></i>
+                </button>
+
+                <button class="nav-item" data-screen="financa">
+                    <i data-lucide="pie-chart" class="w-5 h-5"></i>
+                    <span>CAIXA</span>
+                </button>
+                <button id="logoutBtn" class="nav-item">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                    <span>SAIR</span>
+                </button>
+            </nav>
+        </div>
+    </div>
+    <div id="toastMsg" class="toast"></div>
+
+    <script>
+        // ---------- CONFIGURAÇÕES ----------
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+            authDomain: "glam-studio-8b65c.firebaseapp.com",
+            projectId: "glam-studio-8b65c",
+            storageBucket: "glam-studio-8b65c.firebasestorage.app",
+            messagingSenderId: "154294556895",
+            appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        db.enablePersistence().catch(e => console.warn("persistence", e));
+
+        let currentUser = null;
+        let calendarAccessToken = null;
+        let tokenClient = null;
+        let appointmentsMap = new Map();
+        let weeklyChart, pieChart, trendChart;
+        let currentHomeDate = new Date();
+        let currentCalendarMonth = new Date();
+        let selectedCalendarDate = new Date();
+        let weekOffset = 0;
+        let hasSyncedOnce = false;
+
+        // ---------- UTILITÁRIOS ----------
+        function showToast(msg) {
+            const toast = document.getElementById('toastMsg');
+            toast.innerText = msg;
+            toast.style.opacity = '1';
+            setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+        }
+
+        function formatCurrency(value) { return `R$ ${value.toFixed(2).replace('.',',')}`; }
+        function extractValueFromText(text) {
+            if (!text) return 0;
+            let match = text.match(/(?:R\$)?\s*([0-9]{1,3}(?:\.?[0-9]{3})*\,?[0-9]*)/i);
+            if (match) {
+                let numStr = match[1].replace(/\./g, '').replace(',', '.');
+                let val = parseFloat(numStr);
+                if (!isNaN(val)) return val;
+            }
+            let simple = text.match(/\b(\d+(?:\.\d{1,2})?)\b/);
+            return simple ? parseFloat(simple[1]) : 0;
+        }
+
+        // Modal de período
+        function showSyncModal(callback) {
+            const modal = document.getElementById('syncPeriodModal');
+            modal.classList.add('active');
+            const handleSelect = (period) => {
+                modal.classList.remove('active');
+                if (period && callback) callback(period);
+                cleanup();
+            };
+            const cleanup = () => {
+                document.querySelectorAll('.modal-option').forEach(opt => opt.removeEventListener('click', handlers[opt.dataset.period]));
+                document.getElementById('closeModalBtn').removeEventListener('click', closeHandler);
+            };
+            const closeHandler = () => {
+                modal.classList.remove('active');
+                cleanup();
+            };
+            const handlers = {};
+            document.querySelectorAll('.modal-option').forEach(opt => {
+                const p = opt.dataset.period;
+                const handler = () => handleSelect(p);
+                handlers[p] = handler;
+                opt.addEventListener('click', handler);
+            });
+            document.getElementById('closeModalBtn').addEventListener('click', closeHandler);
+        }
+
+        // Sincronização com Google Calendar
+        async function syncCalendarWithPeriod(period) {
+            if (!currentUser) { showToast("Faça login primeiro."); return; }
+            if (!calendarAccessToken) {
+                showToast("Você precisa autorizar o acesso ao Google Calendar.");
+                if (tokenClient) tokenClient.requestAccessToken({ prompt: 'consent' });
+                return;
+            }
+            let rangeStart, rangeEnd;
+            const now = new Date();
+            if (period === 'current_month') {
+                rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59);
+            } else if (period === 'last_month') {
+                rangeStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                rangeEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59);
+            } else if (period === 'last_2months') {
+                rangeStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+                rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            } else {
+                showToast("Período personalizado em breve.");
+                return;
+            }
+            try {
+                showToast("Sincronizando agenda...");
+                const response = await gapi.client.calendar.events.list({
+                    calendarId: 'primary',
+                    timeMin: rangeStart.toISOString(),
+                    timeMax: rangeEnd.toISOString(),
+                    singleEvents: true,
+                    orderBy: 'startTime'
+                });
+                const events = response.result.items || [];
+                for (const ev of events) {
+                    const startTime = ev.start.dateTime || ev.start.date;
+                    const title = ev.summary || "Atendimento";
+                    const description = ev.description || "";
+                    const value = extractValueFromText(description + " " + title);
+                    const eventId = ev.id;
+                    const docId = `${currentUser.uid}_${eventId}`;
+                    const existing = await db.collection('appointments').doc(docId).get();
+                    const status = existing.exists ? existing.data().status : 'pending';
+                    await db.collection('appointments').doc(docId).set({
+                        userId: currentUser.uid,
+                        eventId, title, start: startTime, value, status,
+                        lastSync: new Date()
+                    }, { merge: true });
+                }
+                await loadAppointmentsFromFirestore();
+                showToast(`Sincronizado! ${events.length} eventos importados.`);
+                return true;
+            } catch (err) {
+                console.error(err);
+                showToast("Erro ao sincronizar: " + err.message);
+                return false;
+            }
+        }
+
+        // Firestore
+        async function loadAppointmentsFromFirestore() {
+            if (!currentUser) return;
+            const snapshot = await db.collection('appointments').where('userId', '==', currentUser.uid).get();
+            appointmentsMap.clear();
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const dateKey = new Date(data.start).toDateString();
+                if (!appointmentsMap.has(dateKey)) appointmentsMap.set(dateKey, []);
+                appointmentsMap.get(dateKey).push({ id: doc.id, ...data, status: data.status || 'pending' });
+            });
+            refreshAllUI();
+        }
+
+        async function updateStatus(appId, newStatus) {
+            await db.collection('appointments').doc(appId).update({ status: newStatus });
+            await loadAppointmentsFromFirestore();
+        }
+
+        // ---------- RENDERIZAÇÃO ----------
+        function renderHomeScreen() {
+            const todayStr = currentHomeDate.toDateString();
+            const appointmentsToday = appointmentsMap.get(todayStr) || [];
+            const totalValue = appointmentsToday.reduce((s,a)=> s + (a.value||0), 0);
+            document.getElementById('todayCountHome').innerText = appointmentsToday.length;
+            document.getElementById('todayRevenueHome').innerHTML = formatCurrency(totalValue);
+            document.getElementById('appointmentCountBadge').innerText = appointmentsToday.length;
+
+            const baseDate = new Date(currentHomeDate);
+            baseDate.setDate(baseDate.getDate() + weekOffset * 7);
+            const startOfWeek = new Date(baseDate);
+            startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+            const daysArray = [];
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(startOfWeek);
+                d.setDate(startOfWeek.getDate() + i);
+                daysArray.push(d);
+            }
+            const container = document.getElementById('dateSelectorContainer');
+            container.innerHTML = '';
+            daysArray.forEach(day => {
+                const isSelected = day.toDateString() === currentHomeDate.toDateString();
+                const appts = appointmentsMap.get(day.toDateString()) || [];
+                const card = document.createElement('div');
+                card.className = `date-card text-center min-w-[70px] py-2 px-2 rounded-2xl transition-all cursor-pointer ${isSelected ? 'bg-pink-500 text-white shadow-lg' : 'bg-white text-gray-700 shadow-sm'}`;
+                card.innerHTML = `
+                    <div class="text-lg font-extrabold">${day.getDate()}</div>
+                    <div class="text-[10px] font-semibold uppercase">${day.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','')}</div>
+                    <div class="text-[9px] mt-1 ${isSelected ? 'text-pink-100' : 'text-gray-400'}">${appts.length} atend.</div>
+                `;
+                card.onclick = () => { currentHomeDate = day; renderHomeScreen(); };
+                container.appendChild(card);
+            });
+
+            const listDiv = document.getElementById('dailyAppointmentsList');
+            if (appointmentsToday.length === 0) {
+                listDiv.innerHTML = '<div class="bg-white rounded-2xl p-6 text-center text-gray-400 text-sm">Nenhum atendimento neste dia</div>';
+            } else {
+                listDiv.innerHTML = appointmentsToday.map(app => {
+                    const time = app.start ? new Date(app.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '--:--';
+                    const statusMap = { pending: { label: 'Em aberto', class: 'text-orange-500 bg-orange-50', icon: 'alert-circle' }, paid: { label: 'Pago', class: 'text-green-600 bg-green-50', icon: 'check-circle-2' }, credit: { label: 'Fiado', class: 'text-red-500 bg-red-50', icon: 'credit-card' } };
+                    const st = statusMap[app.status] || statusMap.pending;
+                    return `<div class="appointment-card bg-white rounded-2xl p-3 flex items-center gap-3 shadow-sm border border-pink-50">
+                        <div class="min-w-[55px] bg-pink-50 rounded-xl py-2 text-center"><span class="text-xs font-black">${time}</span></div>
+                        <div class="flex-1"><p class="font-bold text-gray-800 text-sm">${app.title}</p><p class="text-xs text-gray-400">${app.value ? formatCurrency(app.value) : 'R$ 0'}</p></div>
+                        <div class="status-badge ${st.class} px-2 py-1 rounded-full text-[9px] font-bold flex items-center gap-1" data-id="${app.id}" data-status="${app.status}"><i data-lucide="${st.icon}" class="w-3 h-3"></i> ${st.label}</div>
+                    </div>`;
+                }).join('');
+                lucide.createIcons();
+                document.querySelectorAll('.status-badge').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const id = el.dataset.id;
+                        const currentStat = el.dataset.status;
+                        const next = { pending: 'paid', paid: 'credit', credit: 'pending' }[currentStat];
+                        updateStatus(id, next);
+                    });
+                });
+            }
+            updateWeeklyChartHome();
+        }
+
+        async function updateWeeklyChartHome() {
+            const weekDays = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+            const today = new Date();
+            const startWeek = new Date(today);
+            startWeek.setDate(today.getDate() - today.getDay());
+            const values = [];
+            for (let i=0;i<7;i++) {
+                const d = new Date(startWeek); d.setDate(startWeek.getDate()+i);
+                const apps = appointmentsMap.get(d.toDateString()) || [];
+                const sumPaid = apps.filter(a=>a.status==='paid').reduce((s,a)=>s+(a.value||0),0);
+                values.push(sumPaid);
+            }
+            const ctx = document.getElementById('weeklyChartHome').getContext('2d');
+            if (weeklyChart) weeklyChart.destroy();
+            weeklyChart = new Chart(ctx, { type: 'line', data: { labels: weekDays, datasets: [{ label: 'Recebido (R$)', data: values, borderColor: '#ff4d8d', tension: 0.3, fill: false, pointBackgroundColor: '#ff85b3' }] }, options: { responsive: true, maintainAspectRatio: true } });
+        }
+
+        // Calendário mensal com navegação robusta
+        async function renderCalendarMonth() {
+            const year = currentCalendarMonth.getFullYear(), month = currentCalendarMonth.getMonth();
+            const firstDay = new Date(year, month, 1);
+            const startDate = new Date(firstDay);
+            startDate.setDate(1 - firstDay.getDay()); // começa no domingo anterior
+            const days = [];
+            for (let i = 0; i < 42; i++) {
+                let d = new Date(startDate);
+                d.setDate(startDate.getDate() + i);
+                days.push(d);
+            }
+            // Atualiza título
+            document.getElementById('monthYearLabel').innerText = currentCalendarMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            // Atualiza seletor de mês
+            const selector = document.getElementById('monthYearSelector');
+            if (selector && selector.options.length > 0) {
+                const currentValue = `${year}-${month}`;
+                if (selector.value !== currentValue) selector.value = currentValue;
+            }
+            // Renderiza grid
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '<div class="text-xs text-gray-400">D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div>';
+            days.forEach(day => {
+                const isCurrentMonth = day.getMonth() === month;
+                const cell = document.createElement('div');
+                cell.className = `cal-day ${!isCurrentMonth ? 'other-month' : ''}`;
+                if (day.toDateString() === new Date().toDateString()) cell.classList.add('today-cal');
+                if (day.toDateString() === selectedCalendarDate.toDateString()) cell.classList.add('selected');
+                cell.innerText = day.getDate();
+                cell.onclick = () => {
+                    selectedCalendarDate = day;
+                    renderCalendarMonth();
+                    renderDayAppointments(day);
+                };
+                grid.appendChild(cell);
+            });
+            renderDayAppointments(selectedCalendarDate);
+        }
+
+        function renderDayAppointments(date) {
+            const appts = appointmentsMap.get(date.toDateString()) || [];
+            document.getElementById('selectedDateLabel').innerHTML = date.toLocaleDateString('pt-BR');
+            const container = document.getElementById('selectedDayAppointments');
+            if (!appts.length) {
+                container.innerHTML = '<div class="bg-white rounded-xl p-5 text-center text-gray-400">Nenhum atendimento</div>';
+                return;
+            }
+            container.innerHTML = appts.map(app => {
+                const time = app.start ? new Date(app.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                const statusMap = { pending: '⏳ Em aberto', paid: '✅ Pago', credit: '📝 Fiado' };
+                return `<div class="bg-white rounded-2xl p-3 flex justify-between items-center shadow-sm"><div><p class="font-bold">${app.title}</p><p class="text-xs text-gray-500">${time} - ${formatCurrency(app.value || 0)}</p></div><span class="text-xs font-semibold px-2 py-1 rounded-full bg-pink-50 text-pink-600">${statusMap[app.status]}</span></div>`;
+            }).join('');
+        }
+
+        async function renderFinanceScreen() {
+            let allAppointments = [];
+            for (let list of appointmentsMap.values()) allAppointments.push(...list);
+            const today = new Date();
+            const receivedUntilToday = allAppointments.filter(a => a.status === 'paid' && new Date(a.start) <= today).reduce((s, a) => s + (a.value || 0), 0);
+            document.getElementById('totalReceivedUntilToday').innerText = formatCurrency(receivedUntilToday);
+            const currentMonthForecast = allAppointments.filter(a => {
+                const d = new Date(a.start);
+                return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear() && d >= today;
+            }).reduce((s, a) => s + (a.value || 0), 0);
+            document.getElementById('monthForecast').innerText = formatCurrency(currentMonthForecast);
+            const paid = allAppointments.filter(a => a.status === 'paid').reduce((s, a) => s + (a.value || 0), 0);
+            const pending = allAppointments.filter(a => a.status === 'pending').reduce((s, a) => s + (a.value || 0), 0);
+            const credit = allAppointments.filter(a => a.status === 'credit').reduce((s, a) => s + (a.value || 0), 0);
+            document.getElementById('sumPaid').innerHTML = formatCurrency(paid);
+            document.getElementById('sumPending').innerHTML = formatCurrency(pending);
+            document.getElementById('sumCredit').innerHTML = formatCurrency(credit);
+            if (pieChart) pieChart.destroy();
+            const pieCtx = document.getElementById('pieChartFinance').getContext('2d');
+            pieChart = new Chart(pieCtx, { type: 'pie', data: { labels: ['Recebido', 'Em aberto', 'Fiado'], datasets: [{ data: [paid, pending, credit], backgroundColor: ['#9bc48b', '#f7bc7a', '#e69a8f'] }] } });
+            const last7 = [];
+            for (let i = 6; i >= 0; i--) {
+                let d = new Date(); d.setDate(d.getDate() - i);
+                const sum = (appointmentsMap.get(d.toDateString()) || []).filter(a => a.status === 'paid').reduce((s, a) => s + (a.value || 0), 0);
+                last7.push(sum);
+            }
+            if (trendChart) trendChart.destroy();
+            const trendCtx = document.getElementById('trendChartFinance').getContext('2d');
+            trendChart = new Chart(trendCtx, { type: 'line', data: { labels: ['-6d', '-5d', '-4d', '-3d', '-2d', '-1d', 'Hoje'], datasets: [{ label: 'Recebido diário', data: last7, borderColor: '#ff4d8d' }] } });
+        }
+
+        function refreshAllUI() { renderHomeScreen(); renderCalendarMonth(); renderFinanceScreen(); }
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+            document.getElementById(`${screenId}Screen`).style.display = 'block';
+            document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.nav-item[data-screen="${screenId}"]`)?.classList.add('active');
+            if (screenId === 'home') renderHomeScreen();
+            if (screenId === 'agenda') renderCalendarMonth();
+            if (screenId === 'financa') renderFinanceScreen();
+            lucide.createIcons();
+        }
+
+        // Navegação de meses
+        function changeMonth(delta) {
+            const newDate = new Date(currentCalendarMonth);
+            newDate.setMonth(newDate.getMonth() + delta);
+            currentCalendarMonth = newDate;
+            // Se o dia selecionado não existir no novo mês, redefine para o primeiro dia do mês
+            if (selectedCalendarDate.getMonth() !== currentCalendarMonth.getMonth() ||
+                selectedCalendarDate.getFullYear() !== currentCalendarMonth.getFullYear()) {
+                selectedCalendarDate = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth(), 1);
+            }
+            renderCalendarMonth();
+        }
+
+        // Preencher seletor de mês/ano
+        function populateMonthSelector() {
+            const selector = document.getElementById('monthYearSelector');
+            selector.innerHTML = '';
+            const currentYear = new Date().getFullYear();
+            for (let year = currentYear - 2; year <= currentYear + 2; year++) {
+                for (let month = 0; month < 12; month++) {
+                    const date = new Date(year, month, 1);
+                    const value = `${year}-${month}`;
+                    const label = date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+                    const option = document.createElement('option');
+                    option.value = value;
+                    option.textContent = label;
+                    selector.appendChild(option);
+                }
+            }
+            selector.addEventListener('change', (e) => {
+                const [year, month] = e.target.value.split('-').map(Number);
+                currentCalendarMonth = new Date(year, month, 1);
+                selectedCalendarDate = new Date(year, month, 1);
+                renderCalendarMonth();
+            });
+        }
+
+        // ---------- AUTENTICAÇÃO E INICIALIZAÇÃO ----------
+        async function initGoogleCalendarAPI() {
+            await new Promise(resolve => gapi.load('client', resolve));
+            await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'] });
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: '1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com',
+                scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
+                callback: (tokenResponse) => {
+                    if (tokenResponse.error) {
+                        console.error(tokenResponse);
+                        showToast("Erro ao autorizar Google Calendar: " + tokenResponse.error);
+                        return;
+                    }
+                    calendarAccessToken = tokenResponse.access_token;
+                    showToast("Acesso ao Calendar autorizado! Agora você pode sincronizar.");
+                    if (currentUser && !hasSyncedOnce && appointmentsMap.size === 0) {
+                        showSyncModal(async (period) => {
+                            if (period && period !== 'custom') {
+                                await syncCalendarWithPeriod(period);
+                                hasSyncedOnce = true;
+                            } else if (period === 'custom') showToast("Em breve.");
+                        });
+                    }
+                }
+            });
+        }
+
+        async function firebaseGoogleLogin() {
+            if (isLoggingIn) return;
+            isLoggingIn = true;
+            const btn = document.getElementById('googleLoginBtn');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<div class="loader"></div> Aguardando...';
+            btn.disabled = true;
+            document.getElementById('loginError').classList.add('hidden');
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                provider.addScope('https://www.googleapis.com/auth/calendar');
+                const result = await auth.signInWithPopup(provider);
+                currentUser = result.user;
+                if (tokenClient) tokenClient.requestAccessToken({ prompt: 'consent' });
+            } catch (err) {
+                console.error(err);
+                let errorMsg = err.message;
+                if (err.code === 'auth/popup-blocked') errorMsg = "Pop-up bloqueado. Permita pop-ups para este site.";
+                document.getElementById('loginError').innerText = errorMsg;
+                document.getElementById('loginError').classList.remove('hidden');
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+                isLoggingIn = false;
+            }
+        }
+
+        let isLoggingIn = false;
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('appContent').style.display = 'block';
+                document.getElementById('userAvatarImg').src = user.photoURL || 'https://ui-avatars.com/api/?background=ff4d8d&color=fff&name=' + user.displayName;
+                await loadAppointmentsFromFirestore();
+                refreshAllUI();
+                showScreen('home');
+                const loginBtn = document.getElementById('googleLoginBtn');
+                if (loginBtn) {
+                    loginBtn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5"><span class="font-semibold text-gray-700">Entrar com Google</span>';
+                    loginBtn.disabled = false;
+                }
+                isLoggingIn = false;
+                // Se não houver dados e já tiver token, pergunta
+                if (appointmentsMap.size === 0 && !hasSyncedOnce && calendarAccessToken) {
+                    showSyncModal(async (period) => {
+                        if (period && period !== 'custom') {
+                            await syncCalendarWithPeriod(period);
+                            hasSyncedOnce = true;
+                        } else if (period === 'custom') showToast("Em breve.");
+                    });
+                }
+            } else {
+                document.getElementById('loginScreen').style.display = 'flex';
+                document.getElementById('appContent').style.display = 'none';
+                const loginBtn = document.getElementById('googleLoginBtn');
+                if (loginBtn && loginBtn.disabled) {
+                    loginBtn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5"><span class="font-semibold text-gray-700">Entrar com Google</span>';
+                    loginBtn.disabled = false;
+                }
+                isLoggingIn = false;
+                currentUser = null;
+                calendarAccessToken = null;
+                hasSyncedOnce = false;
+            }
+        });
+
+        // Eventos
+        document.getElementById('globalSyncBtn').onclick = () => {
+            if (!calendarAccessToken) { showToast("Autorize o Calendar primeiro."); tokenClient.requestAccessToken({ prompt: 'consent' }); return; }
+            showSyncModal(async (period) => {
+                if (period && period !== 'custom') await syncCalendarWithPeriod(period);
+                else if (period === 'custom') showToast("Em breve.");
+            });
+        };
+        document.getElementById('syncFab').onclick = () => {
+            if (!calendarAccessToken) { showToast("Autorize o Calendar primeiro."); tokenClient.requestAccessToken({ prompt: 'consent' }); return; }
+            showSyncModal(async (period) => {
+                if (period && period !== 'custom') await syncCalendarWithPeriod(period);
+                else if (period === 'custom') showToast("Em breve.");
+            });
+        };
+        document.getElementById('googleLoginBtn').onclick = firebaseGoogleLogin;
+        document.getElementById('prevWeekBtn').onclick = () => { weekOffset--; renderHomeScreen(); };
+        document.getElementById('nextWeekBtn').onclick = () => { weekOffset++; renderHomeScreen(); };
+        document.getElementById('prevMonthBtn').onclick = () => changeMonth(-1);
+        document.getElementById('nextMonthBtn').onclick = () => changeMonth(1);
+        document.getElementById('logoutBtn').onclick = () => auth.signOut();
+        document.querySelectorAll('.nav-item[data-screen]').forEach(btn => btn.addEventListener('click', (e) => { showScreen(btn.dataset.screen); }));
+        document.getElementById('customRangeBtn').onclick = () => showToast("Filtro por intervalo em breve.");
+
+        const monthSelect = document.getElementById('financeMonthFilter');
+        for (let i = 0; i < 12; i++) {
+            let opt = document.createElement('option');
+            opt.value = i;
+            opt.innerText = new Date(2025, i).toLocaleString('pt-BR', { month: 'long' });
+            monthSelect.appendChild(opt);
+        }
+        monthSelect.value = new Date().getMonth();
+        monthSelect.onchange = () => renderFinanceScreen();
+
+        initGoogleCalendarAPI();
+        populateMonthSelector();
+        lucide.createIcons();
+
+        // PWA
+        if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(e => console.warn); }
+        const manifest = { name: "Glam Studio Financeiro", short_name: "GlamFin", start_url: ".", display: "standalone", theme_color: "#ff4d8d" };
+        const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+        const link = document.createElement('link'); link.rel = 'manifest'; link.href = URL.createObjectURL(blob); document.head.appendChild(link);
+    </script>
+</body>
+</html>
