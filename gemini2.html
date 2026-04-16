@@ -1,0 +1,410 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Glam Studio - Controle Financeiro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root { --primary: #ec4899; --primary-light: #fdf2f8; --bg-app: #f8fafc; --text-dark: #1e293b; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg-app); color: var(--text-dark); margin: 0; padding-bottom: 90px; }
+        .custom-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); }
+        .active-nav { color: var(--primary) !important; }
+        .status-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 99px; font-weight: 600; cursor: pointer; }
+        .status-pago { background: #dcfce7; color: #166534; }
+        .status-aberto { background: #fef9c3; color: #854d0e; }
+        .status-fiado { background: #fee2e2; color: #991b1b; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .loader-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- TELA DE LOGIN -->
+    <div id="login-screen" class="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center p-8 text-center">
+        <div class="mb-8 p-6 bg-pink-50 rounded-full"><i data-lucide="scissors" class="w-16 h-16 text-pink-500"></i></div>
+        <h1 class="text-3xl font-bold mb-2">Glam Studio</h1>
+        <p class="text-gray-500 mb-10">Conecte sua conta Google para importar sua agenda automaticamente.</p>
+        <button id="btn-login" class="flex items-center gap-3 bg-white border border-gray-200 px-6 py-4 rounded-2xl custom-shadow hover:bg-gray-50 transition-all w-full max-w-xs justify-center font-semibold">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/pwa_google_signin_light.png" class="w-5" alt="Google">
+            Entrar com Google
+        </button>
+    </div>
+
+    <!-- NOTIFICAÇÃO TOAST -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full text-sm font-medium z-[100] transition-all opacity-0 pointer-events-none"></div>
+
+    <!-- HEADER -->
+    <header class="p-6 flex justify-between items-center bg-white sticky top-0 z-40">
+        <button class="p-2" onclick="showSyncOptions()"><i data-lucide="settings"></i></button>
+        <div class="text-center">
+            <p id="header-date" class="text-xs font-bold text-gray-400 uppercase tracking-widest">CARREGANDO...</p>
+            <h2 id="view-title" class="text-lg font-bold">Home</h2>
+        </div>
+        <button class="p-2 relative" onclick="syncCalendar()">
+            <i id="sync-icon" data-lucide="refresh-cw" class="w-5 h-5"></i>
+        </button>
+    </header>
+
+    <main id="app-content" class="px-6 py-2"></main>
+
+    <!-- NAV RODAPÉ -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-8 py-4 flex justify-between items-center z-50">
+        <button onclick="changeView('home')" id="nav-home" class="flex flex-col items-center gap-1 text-gray-400"><i data-lucide="layout-grid"></i></button>
+        <button onclick="changeView('agenda')" id="nav-agenda" class="flex flex-col items-center gap-1 text-gray-400"><i data-lucide="calendar"></i></button>
+        <div class="relative -top-6">
+            <img id="user-photo" src="" class="w-14 h-14 rounded-full border-4 border-white custom-shadow object-cover bg-gray-100">
+        </div>
+        <button onclick="changeView('finance')" id="nav-finance" class="flex flex-col items-center gap-1 text-gray-400"><i data-lucide="pie-chart"></i></button>
+        <button onclick="handleLogout()" class="flex flex-col items-center gap-1 text-gray-400"><i data-lucide="log-out"></i></button>
+    </nav>
+
+    <!-- MODAL OPÇÕES DE IMPORTAÇÃO -->
+    <div id="modal-sync" class="fixed inset-0 bg-black/50 z-[60] flex items-end justify-center hidden opacity-0 transition-opacity">
+        <div class="bg-white w-full max-w-md rounded-t-[40px] p-8 pb-12 translate-y-full transition-transform">
+            <h3 class="text-xl font-bold mb-6">Período de Importação</h3>
+            <div class="grid grid-cols-1 gap-3">
+                <button onclick="setSyncRange('month')" class="p-4 bg-gray-50 rounded-2xl text-left font-semibold hover:bg-pink-50 hover:text-pink-600 transition-colors">Este Mês</button>
+                <button onclick="setSyncRange('last-month')" class="p-4 bg-gray-50 rounded-2xl text-left font-semibold hover:bg-pink-50 hover:text-pink-600 transition-colors">Mês Passado</button>
+                <button onclick="setSyncRange('60days')" class="p-4 bg-gray-50 rounded-2xl text-left font-semibold hover:bg-pink-50 hover:text-pink-600 transition-colors">Últimos 2 Meses</button>
+                <button onclick="closeSyncOptions()" class="mt-4 p-4 text-gray-400 font-bold uppercase text-center text-xs tracking-widest">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, collection, query, where, onSnapshot, updateDoc, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        // Configurações
+        const CLIENT_ID = '1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com';
+        const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+            authDomain: "glam-studio-8b65c.firebaseapp.com",
+            projectId: "glam-studio-8b65c",
+            storageBucket: "glam-studio-8b65c.firebasestorage.app",
+            messagingSenderId: "154294556895",
+            appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        let gapiInited = false;
+        let gisInited = false;
+        let tokenClient;
+        let accessToken = null;
+        let appointments = [];
+        let currentView = 'home';
+        let userAuth = null;
+
+        // --- INICIALIZAÇÃO GOOGLE API ---
+        window.gapiLoaded = () => gapi.load('client', async () => {
+            await gapi.client.init({ apiKey: firebaseConfig.apiKey, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'] });
+            gapiInited = true;
+            checkAllInited();
+        });
+
+        window.gisLoaded = () => {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: (resp) => {
+                    if (resp.error) return;
+                    accessToken = resp.access_token;
+                    localStorage.setItem('gCalToken', accessToken);
+                    fetchCalendarEvents();
+                },
+            });
+            gisInited = true;
+            checkAllInited();
+        };
+
+        function checkAllInited() { if(gapiInited && gisInited) console.log("GAPI Ready"); }
+
+        // --- AUTH ---
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userAuth = user;
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('user-photo').src = user.photoURL;
+                updateHeaderDate();
+                renderView();
+                // Tenta recuperar token salvo
+                accessToken = localStorage.getItem('gCalToken');
+                if(accessToken) fetchCalendarEvents();
+            } else {
+                document.getElementById('login-screen').classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('btn-login').onclick = async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+                tokenClient.requestAccessToken({ prompt: 'consent' });
+            } catch (e) { showToast("Falha no login"); }
+        };
+
+        window.handleLogout = () => {
+            signOut(auth);
+            localStorage.removeItem('gCalToken');
+        };
+
+        // --- CALENDAR LOGIC ---
+        window.syncCalendar = () => {
+            if (!accessToken) tokenClient.requestAccessToken({ prompt: '' });
+            else fetchCalendarEvents();
+        };
+
+        async function fetchCalendarEvents(range = 'month') {
+            const syncIcon = document.getElementById('sync-icon');
+            syncIcon.classList.add('loader-spin');
+            
+            let timeMin = new Date();
+            if(range === 'month') timeMin.setDate(1);
+            else if(range === '60days') timeMin.setDate(timeMin.getDate() - 60);
+
+            try {
+                const response = await gapi.client.calendar.events.list({
+                    calendarId: 'primary',
+                    timeMin: timeMin.toISOString(),
+                    showDeleted: false,
+                    singleEvents: true,
+                    orderBy: 'startTime',
+                });
+
+                const events = response.result.items;
+                const processed = [];
+
+                // Puxar status salvos no Firestore para bater com os IDs do Google
+                const statusSnapshot = await getDocs(collection(db, 'artifacts', 'glam-studio', 'users', userAuth.uid, 'eventStatus'));
+                const statusMap = {};
+                statusSnapshot.forEach(doc => statusMap[doc.id] = doc.data().status);
+
+                for (const event of events) {
+                    const start = event.start.dateTime || event.start.date;
+                    const val = extractValue(event.summary + " " + (event.description || ""));
+                    
+                    processed.push({
+                        id: event.id,
+                        client: event.summary,
+                        date: new Date(start),
+                        time: new Date(start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                        value: val,
+                        status: statusMap[event.id] || 'aberto'
+                    });
+                }
+
+                appointments = processed;
+                renderView();
+                showToast("Agenda atualizada!");
+            } catch (err) {
+                console.error(err);
+                if(err.status === 401) {
+                    accessToken = null;
+                    tokenClient.requestAccessToken({ prompt: '' });
+                }
+            } finally {
+                syncIcon.classList.remove('loader-spin');
+            }
+        }
+
+        function extractValue(text) {
+            const regex = /(?:R\$|R\s\$|\$)\s?(\d+(?:[.,]\d{2})?)|(\d+(?:[.,]\d{2})?)/gi;
+            let match;
+            let found = 0;
+            while ((match = regex.exec(text)) !== null) {
+                const valStr = (match[1] || match[2]).replace(',', '.');
+                const val = parseFloat(valStr);
+                if (val > found) found = val;
+            }
+            return found;
+        }
+
+        window.updateStatus = async (eventId, newStatus) => {
+            if(!userAuth) return;
+            try {
+                await setDoc(doc(db, 'artifacts', 'glam-studio', 'users', userAuth.uid, 'eventStatus', eventId), {
+                    status: newStatus,
+                    updatedAt: new Date()
+                }, { merge: true });
+                
+                const appIdx = appointments.findIndex(a => a.id === eventId);
+                if(appIdx > -1) appointments[appIdx].status = newStatus;
+                renderView();
+            } catch (e) { showToast("Erro ao salvar status"); }
+        };
+
+        // --- INTERFACE ---
+        window.changeView = (v) => { currentView = v; renderView(); };
+
+        function renderView() {
+            const container = document.getElementById('app-content');
+            const title = document.getElementById('view-title');
+            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active-nav'));
+            const activeNav = document.getElementById(`nav-${currentView}`);
+            if(activeNav) activeNav.classList.add('active-nav');
+
+            container.innerHTML = '';
+            if (currentView === 'home') renderHome(container, title);
+            else if (currentView === 'agenda') renderAgenda(container, title);
+            else if (currentView === 'finance') renderFinance(container, title);
+            
+            lucide.createIcons();
+        }
+
+        function renderHome(container, title) {
+            title.innerText = "Home";
+            const today = new Date();
+            const todayApps = appointments.filter(a => isSameDay(a.date, today));
+            const total = todayApps.reduce((s, a) => s + a.value, 0);
+
+            container.innerHTML = `
+                <div class="fade-in">
+                    <div class="grid grid-cols-2 gap-4 mb-8">
+                        <div class="bg-white p-5 rounded-3xl custom-shadow">
+                            <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Clientes Hoje</p>
+                            <h3 class="text-2xl font-bold">${todayApps.length}</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-3xl custom-shadow">
+                            <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Previsto Hoje</p>
+                            <h3 class="text-2xl font-bold">R$ ${total.toFixed(0)}</h3>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="font-bold">Hoje, ${today.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</h4>
+                    </div>
+                    <div class="space-y-4">
+                        ${todayApps.length ? todayApps.map(a => `
+                            <div class="bg-white p-5 rounded-3xl custom-shadow flex items-center justify-between border-l-4 ${a.status === 'pago' ? 'border-green-500' : 'border-pink-500'}">
+                                <div>
+                                    <p class="text-[10px] font-bold text-gray-400">${a.time}</p>
+                                    <h5 class="font-bold text-sm">${a.client}</h5>
+                                    <div class="flex gap-2 mt-2">
+                                        <span onclick="cycleStatus('${a.id}', '${a.status}')" class="status-badge status-${a.status}">${a.status.toUpperCase()}</span>
+                                        <span class="text-[10px] font-bold text-gray-300">R$ ${a.value}</span>
+                                    </div>
+                                </div>
+                                <button class="p-2 text-gray-300"><i data-lucide="chevron-right"></i></button>
+                            </div>
+                        `).join('') : '<p class="text-center py-10 text-gray-400 italic">Nenhum atendimento sincronizado para hoje.</p>'}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAgenda(container, title) {
+            title.innerText = "Agenda";
+            const sorted = [...appointments].sort((a,b) => a.date - b.date);
+            container.innerHTML = `
+                <div class="fade-in space-y-4">
+                    ${sorted.map(a => `
+                        <div class="bg-white p-4 rounded-2xl flex gap-4 items-center">
+                            <div class="text-center min-w-[40px]">
+                                <p class="text-lg font-bold">${a.date.getDate()}</p>
+                                <p class="text-[10px] text-gray-400 uppercase">${a.date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</p>
+                            </div>
+                            <div class="flex-1">
+                                <h5 class="font-bold text-sm">${a.client}</h5>
+                                <p class="text-xs text-gray-400">${a.time} • R$ ${a.value}</p>
+                            </div>
+                            <span onclick="cycleStatus('${a.id}', '${a.status}')" class="status-badge status-${a.status}">${a.status[0].toUpperCase()}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderFinance(container, title) {
+            title.innerText = "Financeiro";
+            const total = appointments.reduce((s, a) => s + a.value, 0);
+            const pago = appointments.filter(a => a.status === 'pago').reduce((s, a) => s + a.value, 0);
+            const pendente = appointments.filter(a => a.status === 'aberto').reduce((s, a) => s + a.value, 0);
+            const fiado = appointments.filter(a => a.status === 'fiado').reduce((s, a) => s + a.value, 0);
+
+            container.innerHTML = `
+                <div class="fade-in">
+                    <div class="bg-gray-900 text-white p-8 rounded-[40px] custom-shadow mb-6">
+                        <p class="text-sm text-gray-400 mb-1">Total do Período</p>
+                        <h2 class="text-4xl font-bold">R$ ${total.toLocaleString('pt-BR')}</h2>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div class="bg-white p-5 rounded-3xl custom-shadow flex justify-between items-center">
+                            <div><p class="text-xs font-bold text-gray-400 uppercase">Recebido</p><h4 class="text-xl font-bold text-green-500">R$ ${pago}</h4></div>
+                            <i data-lucide="check-circle" class="text-green-500 opacity-20 w-10 h-10"></i>
+                        </div>
+                        <div class="bg-white p-5 rounded-3xl custom-shadow flex justify-between items-center">
+                            <div><p class="text-xs font-bold text-gray-400 uppercase">Em Aberto</p><h4 class="text-xl font-bold text-yellow-500">R$ ${pendente}</h4></div>
+                            <i data-lucide="clock" class="text-yellow-500 opacity-20 w-10 h-10"></i>
+                        </div>
+                        <div class="bg-white p-5 rounded-3xl custom-shadow flex justify-between items-center">
+                            <div><p class="text-xs font-bold text-gray-400 uppercase">Fiado</p><h4 class="text-xl font-bold text-red-500">R$ ${fiado}</h4></div>
+                            <i data-lucide="alert-circle" class="text-red-500 opacity-20 w-10 h-10"></i>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- UI HELPERS ---
+        window.cycleStatus = (id, current) => {
+            const next = current === 'aberto' ? 'pago' : (current === 'pago' ? 'fiado' : 'aberto');
+            updateStatus(id, next);
+        };
+
+        window.showSyncOptions = () => {
+            const m = document.getElementById('modal-sync');
+            m.classList.remove('hidden');
+            setTimeout(() => {
+                m.classList.add('opacity-100');
+                m.querySelector('div').classList.remove('translate-y-full');
+            }, 10);
+        };
+
+        window.closeSyncOptions = () => {
+            const m = document.getElementById('modal-sync');
+            m.classList.remove('opacity-100');
+            m.querySelector('div').classList.add('translate-y-full');
+            setTimeout(() => m.classList.add('hidden'), 300);
+        };
+
+        window.setSyncRange = (range) => {
+            fetchCalendarEvents(range);
+            closeSyncOptions();
+        };
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.replace('opacity-0', 'opacity-100');
+            setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 3000);
+        }
+
+        function isSameDay(d1, d2) {
+            return d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
+        }
+
+        function updateHeaderDate() {
+            const now = new Date();
+            document.getElementById('header-date').innerText = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        }
+
+    </script>
+</body>
+</html>
+
+```
