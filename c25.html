@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#D4006A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Glam Studio · Controle Financeiro</title>
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiR2xhbSBTdHVkaW8iLCJzaG9ydF9uYW1lIjoiR2xhbSIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjRkZGNEY3IiwidGhlbWVfY29sb3IiOiIjRDQwMDZBIiwiaWNvbnMiOlt7InNyYyI6ImRhdGE6aW1hZ2Uvc3ZnK3htbCwlM0NzdmcgeG1sbnM9J2h0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnJyB2aWV3Qm94PScwIDAgMTkyIDE5MiclM0UlM0NjaXJjbGUgY3g9Jzk2JyBjeT0nOTYnIHI9JzkwJyBmaWxsPSclMjNENDAwNkEnLyUzRSUzQ3RleHQgeD0nOTYnIHk9JzEyMCcgZm9udC1zaXplPSc4MCcgZmlsbD0nd2hpdGUnIHRleHQtYW5jaG9yPSdtaWRkbGUnJTNFJTJCJTNDL3RleHQlM0UlM0Mvc3ZnJTNFIiwic2l6ZXMiOiIxOTJ4MTkyIiwidHlwZSI6ImltYWdlL3N2Zyt4bWwifV19">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+<style>
+/* ===== RESET & VARS ===== */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+:root {
+  --rose:        #D4006A;
+  --rose-mid:    #E8197A;
+  --rose-light:  #FF6BAC;
+  --rose-pale:   #FFF0F5;
+  --rose-bg:     #FFF4F8;
+  --plum:        #3D0027;
+  --plum-mid:    #6B0041;
+  --gold:        #FFB347;
+  --gold-light:  #FFF3E0;
+  --green:       #00B37E;
+  --green-light: #E6FFF7;
+  --amber:       #F59E0B;
+  --amber-light: #FFFBEB;
+  --red:         #EF4444;
+  --surface:     #FFFFFF;
+  --bg:          #FFF4F8;
+  --text:        #1A0010;
+  --text-mid:    #5C2A44;
+  --text-soft:   #9B7088;
+  --border:      #F0D0DF;
+  --shadow-sm:   0 2px 8px rgba(212,0,106,0.06);
+  --shadow:      0 4px 16px rgba(212,0,106,0.10);
+  --shadow-lg:   0 12px 32px rgba(212,0,106,0.16);
+  --r-sm: 14px;
+  --r:    20px;
+  --r-lg: 28px;
+  --r-xl: 36px;
+}
+
+html { overflow-x: hidden; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+  padding-bottom: 90px;
+  overflow-x: hidden;
+}
+
+/* ===== UTILS ===== */
+.hidden { display: none !important; }
+.flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.w-full { width: 100%; }
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 0; height: 0; }
+
+/* ===== LOADER ===== */
+#global-loader {
+  position: fixed; inset: 0; z-index: 99999;
+  background: linear-gradient(160deg, #D4006A 0%, #6B0041 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: opacity 0.4s, visibility 0.4s;
+}
+#global-loader.fade-out { opacity: 0; visibility: hidden; }
+.loader-logo {
+  width: 80px; height: 80px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 30px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px; color: white;
+  margin-bottom: 20px;
+  animation: popIn 0.5s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.loader-text { color: white; font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 32px; }
+.loader-dots { display: flex; gap: 8px; }
+.loader-dots span {
+  width: 10px; height: 10px; background: rgba(255,255,255,0.7);
+  border-radius: 50%; animation: bounce 1.2s infinite;
+}
+.loader-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loader-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-12px); } }
+
+/* ===== LOGIN ===== */
+#login-screen {
+  position: fixed; inset: 0; z-index: 9000;
+  background: linear-gradient(160deg, #D4006A 0%, #6B0041 50%, #3D0027 100%);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+}
+#login-screen::before {
+  content: '';
+  position: absolute; top: -100px; right: -80px;
+  width: 300px; height: 300px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 50%;
+}
+#login-screen::after {
+  content: '';
+  position: absolute; bottom: -80px; left: -60px;
+  width: 250px; height: 250px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 50%;
+}
+.login-card {
+  background: white;
+  width: 100%; max-width: 380px;
+  padding: 40px 28px 32px;
+  border-radius: 36px;
+  box-shadow: 0 32px 64px rgba(0,0,0,0.25);
+  text-align: center;
+  position: relative; z-index: 1;
+  animation: slideUp 0.5s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.login-logo {
+  width: 84px; height: 84px;
+  background: linear-gradient(135deg, var(--rose), var(--plum-mid));
+  border-radius: 28px;
+  margin: 0 auto 20px;
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 40px;
+  box-shadow: 0 12px 24px rgba(212,0,106,0.3);
+}
+.login-card h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 30px; font-weight: 700;
+  color: var(--text); margin-bottom: 6px;
+}
+.login-card .tagline { color: var(--text-soft); font-size: 15px; margin-bottom: 32px; }
+
+.google-btn {
+  width: 100%; padding: 16px 20px;
+  background: white; color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: 50px;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+}
+.google-btn:hover { border-color: var(--rose); box-shadow: var(--shadow); transform: translateY(-2px); }
+.google-btn:active { transform: translateY(0); }
+.google-btn img { width: 22px; }
+
+.login-error { margin-top: 14px; color: var(--red); font-size: 13px; min-height: 18px; }
+.login-note { margin-top: 20px; color: var(--text-soft); font-size: 12px; }
+.spin-wrap { margin-top: 16px; display: flex; justify-content: center; }
+.spinner {
+  width: 28px; height: 28px;
+  border: 3px solid var(--rose-pale);
+  border-top-color: var(--rose);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== APP SHELL ===== */
+#app { display: none; }
+#app.visible { display: block; }
+
+/* ===== HEADER ===== */
+.app-header {
+  position: sticky; top: 0; z-index: 500;
+  background: rgba(255,244,248,0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: env(safe-area-inset-top,0) 0 0;
+  border-bottom: 1px solid rgba(212,0,106,0.06);
+}
+.header-inner {
+  padding: 12px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.page-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px; font-weight: 700; color: var(--text);
+}
+.header-right { display: flex; align-items: center; gap: 6px; }
+
+.icon-btn {
+  width: 42px; height: 42px;
+  border-radius: 14px; border: none;
+  background: transparent; color: var(--text-soft);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 19px; cursor: pointer; transition: all 0.15s;
+}
+.icon-btn:hover { background: var(--rose-pale); color: var(--rose); }
+.icon-btn.primary { background: var(--rose); color: white; box-shadow: var(--shadow-sm); }
+.icon-btn.primary:hover { background: var(--rose-mid); }
+
+.header-avatar {
+  width: 38px; height: 38px;
+  border-radius: 14px; object-fit: cover;
+  border: 2px solid var(--rose-pale);
+  cursor: pointer;
+}
+
+/* ===== MAIN ===== */
+.main {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px 16px;
+}
+
+/* ===== VIEWS ===== */
+.view { display: none; }
+.view.active { display: block; animation: fadeIn 0.18s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ===== SECTION HEADER ===== */
+.section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.section-title {
+  font-size: 17px; font-weight: 700; color: var(--text);
+}
+.section-link {
+  font-size: 13px; font-weight: 600; color: var(--rose);
+  background: none; border: none; cursor: pointer; padding: 4px 8px;
+  border-radius: 8px; transition: background 0.15s;
+}
+.section-link:hover { background: var(--rose-pale); }
+
+/* ===== GREETING ===== */
+.greeting-block { margin-bottom: 22px; }
+.greeting-hi { font-size: 14px; color: var(--text-soft); margin-bottom: 2px; }
+.greeting-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px; font-weight: 700; color: var(--text);
+}
+
+/* ===== HERO STATS ===== */
+.hero-card {
+  background: linear-gradient(135deg, var(--rose) 0%, var(--plum-mid) 100%);
+  border-radius: var(--r-xl);
+  padding: 24px 22px;
+  color: white;
+  position: relative; overflow: hidden;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 24px rgba(212,0,106,0.25);
+}
+.hero-card::before {
+  content: '';
+  position: absolute; top: -40px; right: -30px;
+  width: 160px; height: 160px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 50%;
+}
+.hero-card::after {
+  content: '';
+  position: absolute; bottom: -60px; left: 40px;
+  width: 200px; height: 200px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 50%;
+}
+.hero-label { font-size: 13px; opacity: 0.8; margin-bottom: 4px; letter-spacing: 0.3px; }
+.hero-value { font-size: 38px; font-weight: 700; line-height: 1.1; margin-bottom: 16px; }
+.hero-row { display: flex; gap: 20px; }
+.hero-mini { }
+.hero-mini-label { font-size: 12px; opacity: 0.7; }
+.hero-mini-value { font-size: 18px; font-weight: 600; }
+
+/* ===== STAT GRID ===== */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+.stat-card {
+  background: white; border-radius: var(--r);
+  padding: 16px 14px; box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+}
+.stat-icon {
+  width: 36px; height: 36px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; margin-bottom: 10px;
+}
+.stat-icon.green  { background: var(--green-light);  color: var(--green); }
+.stat-icon.amber  { background: var(--amber-light);  color: var(--amber); }
+.stat-icon.rose   { background: var(--rose-pale);    color: var(--rose); }
+.stat-icon.blue   { background: #EEF2FF; color: #6366F1; }
+.stat-card-value  { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
+.stat-card-label  { font-size: 12px; color: var(--text-soft); margin-top: 3px; }
+
+/* ===== DATE STRIP ===== */
+.date-strip {
+  display: flex; gap: 8px;
+  overflow-x: auto; padding: 4px 0 12px;
+  margin-bottom: 4px;
+}
+.date-pill {
+  min-width: 62px; height: 88px;
+  background: white; border-radius: 22px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-sm); border: 2px solid transparent;
+  cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+}
+.date-pill:hover { border-color: var(--rose-light); }
+.date-pill.today-pill { border-color: var(--rose); }
+.date-pill.selected-pill {
+  background: var(--rose); color: white;
+  box-shadow: 0 6px 16px rgba(212,0,106,0.22);
+  border-color: var(--rose);
+  transform: scale(1.03);
+}
+.pill-day  { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-soft); }
+.pill-num  { font-size: 24px; font-weight: 700; line-height: 1.1; color: var(--text); }
+.pill-dot  { width: 5px; height: 5px; background: var(--rose); border-radius: 50%; margin-top: 4px; }
+.selected-pill .pill-day,
+.selected-pill .pill-num { color: white; }
+.selected-pill .pill-dot { background: rgba(255,255,255,0.7); }
+
+/* ===== APPOINTMENT CARDS ===== */
+.apt-list { display: flex; flex-direction: column; gap: 10px; }
+.apt-card {
+  background: white; border-radius: var(--r);
+  padding: 14px 16px;
+  display: flex; align-items: center; gap: 14px;
+  box-shadow: var(--shadow-sm); border: 1px solid var(--border);
+  cursor: pointer; transition: all 0.15s;
+  position: relative; overflow: hidden;
+}
+.apt-card:hover { box-shadow: var(--shadow); transform: translateX(2px); }
+.apt-card::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px;
+}
+.apt-card.status-paid::before   { background: var(--green); }
+.apt-card.status-pending::before { background: var(--amber); }
+.apt-card.status-credit::before  { background: var(--rose); }
+
+.apt-time-col { text-align: center; min-width: 52px; }
+.apt-time { font-size: 15px; font-weight: 700; color: var(--rose); line-height: 1; }
+.apt-time-end { font-size: 11px; color: var(--text-soft); }
+.apt-info { flex: 1; min-width: 0; }
+.apt-name { font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.apt-service { font-size: 12px; color: var(--text-soft); margin-top: 2px; }
+.apt-right { text-align: right; }
+.apt-value { font-size: 16px; font-weight: 700; color: var(--text); }
+.apt-badge {
+  display: inline-block; padding: 3px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; margin-top: 4px;
+}
+.badge-paid    { background: var(--green-light); color: var(--green); }
+.badge-pending { background: var(--amber-light); color: var(--amber); }
+.badge-credit  { background: var(--rose-pale);   color: var(--rose); }
+
+.apt-empty {
+  text-align: center; padding: 28px 0; color: var(--text-soft);
+  font-size: 15px; background: white; border-radius: var(--r);
+  border: 1px dashed var(--border);
+}
+.apt-empty i { font-size: 28px; display: block; margin-bottom: 8px; opacity: 0.4; }
+
+/* ===== WEEK CHART CARD ===== */
+.chart-card {
+  background: white; border-radius: var(--r-lg);
+  padding: 20px 16px; box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border); margin-bottom: 20px;
+}
+.chart-card h4 { font-size: 15px; font-weight: 700; margin-bottom: 16px; }
+
+/* ===== CALENDAR ===== */
+.cal-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px; padding: 0 4px;
+}
+.cal-month-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px; font-weight: 700; color: var(--text);
+  text-transform: capitalize;
+}
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: 5px; margin-bottom: 24px;
+}
+.cal-wday {
+  text-align: center; font-size: 11px; font-weight: 700;
+  color: var(--text-soft); padding: 6px 0; text-transform: uppercase;
+}
+.cal-day {
+  aspect-ratio: 1; background: white; border-radius: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 500; color: var(--text);
+  box-shadow: var(--shadow-sm); cursor: pointer;
+  border: 2px solid transparent; position: relative;
+  transition: all 0.12s;
+}
+.cal-day:hover { border-color: var(--rose-light); }
+.cal-day.today { border-color: var(--rose); color: var(--rose); font-weight: 700; }
+.cal-day.selected { background: var(--rose); color: white; border-color: var(--rose); box-shadow: 0 4px 12px rgba(212,0,106,0.25); }
+.cal-day.other-month { opacity: 0.3; }
+.cal-day-dot {
+  width: 5px; height: 5px; background: var(--green);
+  border-radius: 50%; position: absolute; bottom: 5px;
+}
+.cal-day.selected .cal-day-dot { background: rgba(255,255,255,0.8); }
+
+/* ===== DAY PANEL ===== */
+.day-panel {
+  background: linear-gradient(145deg, var(--rose), var(--plum-mid));
+  margin: 0 -16px -20px; padding: 24px 20px 40px;
+  border-radius: 28px 28px 0 0; color: white;
+  box-shadow: 0 -4px 16px rgba(212,0,106,0.12);
+}
+.day-panel-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.day-panel-title { font-size: 15px; font-weight: 600; opacity: 0.85; text-transform: capitalize; }
+.day-panel-total { font-size: 22px; font-weight: 700; }
+.day-panel-list { display: flex; flex-direction: column; gap: 10px; }
+.panel-apt {
+  background: rgba(255,255,255,0.12);
+  border-radius: 16px; padding: 13px 14px;
+  display: flex; align-items: center; gap: 12px;
+  cursor: pointer; transition: background 0.15s;
+  backdrop-filter: blur(4px);
+}
+.panel-apt:hover { background: rgba(255,255,255,0.2); }
+.panel-apt-time { font-size: 13px; font-weight: 700; min-width: 48px; opacity: 0.9; }
+.panel-apt-name { flex: 1; font-size: 14px; font-weight: 600; }
+.panel-apt-val  { font-size: 15px; font-weight: 700; }
+.panel-badge {
+  padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700;
+  margin-left: 8px;
+}
+.panel-badge.paid    { background: rgba(0,179,126,0.25); color: #7FFFD4; }
+.panel-badge.pending { background: rgba(245,158,11,0.25); color: #FFD97A; }
+.panel-badge.credit  { background: rgba(255,107,172,0.25); color: #FFB3D4; }
+.panel-empty { text-align: center; opacity: 0.7; padding: 20px 0; }
+
+/* ===== FINANCE ===== */
+.finance-hero {
+  background: linear-gradient(145deg, #1C0F14 0%, #3D0027 100%);
+  border-radius: var(--r-xl); padding: 28px 22px; color: white;
+  margin-bottom: 18px; position: relative; overflow: hidden;
+  box-shadow: 0 12px 28px rgba(61,0,39,0.3);
+}
+.finance-hero::before {
+  content: '';
+  position: absolute; top: -60px; right: -40px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(212,0,106,0.25) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.fin-label { font-size: 13px; opacity: 0.65; margin-bottom: 4px; }
+.fin-value { font-size: 42px; font-weight: 700; line-height: 1.05; margin-bottom: 18px; }
+.fin-sub-row { display: flex; gap: 24px; }
+.fin-sub-item .fin-sub-val  { font-size: 18px; font-weight: 600; }
+.fin-sub-item .fin-sub-lbl  { font-size: 12px; opacity: 0.65; }
+.fin-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.fin-period-btn {
+  background: none; border: none; padding: 8px;
+  border-radius: 12px; cursor: pointer; color: white;
+  font-size: 18px; transition: background 0.15s;
+  opacity: 0.8;
+}
+.fin-period-btn:hover { background: rgba(255,255,255,0.1); }
+.fin-month { font-size: 16px; font-weight: 600; flex: 1; text-align: center; text-transform: capitalize; }
+
+/* FILTER CHIPS */
+.filter-row { display: flex; gap: 8px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; margin-bottom: 18px; }
+.chip {
+  padding: 8px 16px; border-radius: 30px;
+  background: white; border: 1.5px solid var(--border);
+  font-size: 13px; font-weight: 600; color: var(--text-soft);
+  cursor: pointer; white-space: nowrap; transition: all 0.15s; flex-shrink: 0;
+}
+.chip.active { background: var(--rose); color: white; border-color: var(--rose); box-shadow: 0 4px 10px rgba(212,0,106,0.2); }
+
+/* STAT TRIPLE */
+.stat-triple { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+.triple-card {
+  background: white; border-radius: var(--r);
+  padding: 16px 12px; text-align: center;
+  box-shadow: var(--shadow-sm); border: 1px solid var(--border);
+}
+.triple-icon { font-size: 20px; margin-bottom: 6px; }
+.triple-val { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1; }
+.triple-lbl { font-size: 11px; color: var(--text-soft); margin-top: 3px; }
+
+/* CUSTOM DATE */
+.custom-date-wrap {
+  display: none; gap: 10px; margin-bottom: 16px;
+}
+.custom-date-wrap.visible { display: flex; }
+.date-input {
+  flex: 1; padding: 12px 16px;
+  border-radius: 30px; border: 1.5px solid var(--border);
+  font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text);
+  background: white; transition: border 0.15s;
+  outline: none;
+}
+.date-input:focus { border-color: var(--rose); }
+
+/* ===== BOTTOM NAV ===== */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex; justify-content: space-around; align-items: center;
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0));
+  box-shadow: 0 -1px 0 rgba(212,0,106,0.06), 0 -8px 24px rgba(212,0,106,0.05);
+  z-index: 600;
+}
+.nav-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  background: none; border: none; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600;
+  color: var(--text-soft); padding: 6px 0; transition: color 0.15s;
+  gap: 3px;
+}
+.nav-btn.active { color: var(--rose); }
+.nav-btn i { font-size: 22px; transition: transform 0.15s; }
+.nav-btn.active i { transform: scale(1.1); }
+
+.nav-center {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  cursor: pointer; position: relative; top: -18px;
+}
+.nav-avatar-ring {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--rose), var(--plum-mid));
+  padding: 3px; box-shadow: 0 4px 12px rgba(212,0,106,0.3);
+}
+.nav-avatar-inner {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: white; overflow: hidden;
+}
+.nav-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.nav-avatar-placeholder {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: var(--rose-pale); display: flex; align-items: center; justify-content: center;
+  color: var(--rose); font-size: 22px;
+}
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(28,15,20,0.5);
+  z-index: 1000; display: none; align-items: flex-end;
+  backdrop-filter: blur(4px);
+}
+.modal-overlay.open { display: flex; }
+.modal-sheet {
+  background: white; width: 100%;
+  border-radius: 28px 28px 0 0; padding: 12px 0 0;
+  max-height: 85vh; overflow: hidden;
+  display: flex; flex-direction: column;
+  animation: sheetUp 0.25s cubic-bezier(0.34,1.2,0.64,1);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.sheet-drag {
+  width: 40px; height: 4px; background: var(--border);
+  border-radius: 2px; margin: 0 auto 16px; flex-shrink: 0;
+}
+.sheet-header {
+  padding: 0 22px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.sheet-title { font-size: 18px; font-weight: 700; color: var(--text); }
+.sheet-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+
+/* STATUS OPTIONS */
+.status-opt {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px; border-radius: var(--r-sm); cursor: pointer;
+  border: 1.5px solid transparent; transition: all 0.15s; margin-bottom: 10px;
+  background: none; width: 100%; font-family: 'DM Sans', sans-serif;
+  font-size: 15px; font-weight: 600; color: var(--text);
+}
+.status-opt:hover { border-color: var(--border); }
+.status-opt.active { border-color: currentColor; }
+.status-opt.opt-paid   { background: var(--green-light); }
+.status-opt.opt-pending { background: var(--amber-light); }
+.status-opt.opt-credit  { background: var(--rose-pale); }
+.status-opt .opt-icon { font-size: 22px; }
+.status-opt .opt-label { flex: 1; text-align: left; }
+.status-opt .opt-check { font-size: 18px; opacity: 0; }
+.status-opt.active .opt-check { opacity: 1; }
+
+/* SYNC MODAL */
+.sync-select {
+  width: 100%; padding: 14px 18px;
+  border-radius: 30px; border: 1.5px solid var(--border);
+  font-family: 'DM Sans', sans-serif; font-size: 15px;
+  color: var(--text); background: var(--bg); margin-bottom: 16px;
+  outline: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239B7088' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 18px center;
+  padding-right: 40px; cursor: pointer;
+}
+.sync-select:focus { border-color: var(--rose); }
+
+.btn-primary {
+  width: 100%; padding: 16px;
+  background: linear-gradient(135deg, var(--rose), var(--plum-mid));
+  color: white; border: none; border-radius: 30px;
+  font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 700;
+  cursor: pointer; box-shadow: 0 6px 16px rgba(212,0,106,0.25);
+  transition: all 0.2s; margin-bottom: 10px;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(212,0,106,0.35); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+.btn-ghost {
+  width: 100%; padding: 14px;
+  background: transparent; color: var(--text-soft);
+  border: 1.5px solid var(--border); border-radius: 30px;
+  font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+}
+.btn-ghost:hover { background: var(--bg); }
+
+/* ===== TOAST ===== */
+#toast {
+  position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%) translateY(10px);
+  background: var(--plum); color: white;
+  padding: 12px 22px; border-radius: 30px;
+  font-size: 14px; font-weight: 500;
+  z-index: 5000; opacity: 0; pointer-events: none;
+  transition: all 0.25s; white-space: nowrap;
+  max-width: calc(100vw - 40px); text-align: center;
+  box-shadow: 0 8px 20px rgba(61,0,39,0.3);
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ===== SYNC BUTTON floating ===== */
+.fab-sync {
+  position: fixed; right: 20px; bottom: 100px;
+  width: 48px; height: 48px; border-radius: 16px;
+  background: white; color: var(--rose);
+  border: 1.5px solid var(--border); box-shadow: var(--shadow);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; cursor: pointer; z-index: 400;
+  transition: all 0.2s;
+}
+.fab-sync:hover { background: var(--rose); color: white; box-shadow: var(--shadow-lg); }
+.fab-sync.spinning i { animation: spin 0.6s linear infinite; }
+
+/* ===== RESPONSIVE ===== */
+@media (min-width: 420px) {
+  .date-pill { min-width: 72px; }
+}
+</style>
+</head>
+<body>
+
+<!-- GLOBAL LOADER -->
+<div id="global-loader">
+  <div class="loader-logo"><i class="fas fa-scissors"></i></div>
+  <div class="loader-text">Glam Studio</div>
+  <div class="loader-dots"><span></span><span></span><span></span></div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen" class="hidden">
+  <div class="login-card">
+    <div class="login-logo"><i class="fas fa-scissors"></i></div>
+    <h1>Glam Studio</h1>
+    <p class="tagline">Agenda &amp; financeiro para beleza</p>
+    <button id="google-login-btn" class="google-btn">
+      <svg width="22" height="22" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.6 33.6 30 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 2.9l6.1-6.1C34.6 5.5 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-7.7 19.7-20 0-1.3-.1-2.7-.2-4z"/><path fill="#34A853" d="M6.3 14.7l7 5.1C15.1 16.1 19.2 13 24 13c3 0 5.8 1.1 7.9 2.9l6.1-6.1C34.6 5.5 29.6 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/><path fill="#FBBC05" d="M24 44c5.6 0 10.7-1.9 14.6-5l-6.7-5.5C30 35.1 27.1 36 24 36c-5.9 0-10.9-3.9-12.7-9.3l-7 5.4C7.8 39.3 15.4 44 24 44z"/><path fill="#EA4335" d="M43.6 20H24v8.5h11.8c-.8 2.3-2.3 4.2-4.3 5.6l6.7 5.5C42.1 36.2 44 30.5 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+      Entrar com Google
+    </button>
+    <div id="login-error" class="login-error"></div>
+    <div id="login-spinner" class="spin-wrap hidden"><div class="spinner"></div></div>
+    <p class="login-note">Ao entrar, você concede acesso ao Google Calendar.</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="">
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-left">
+        <button class="icon-btn" id="header-sync-btn" title="Sincronizar"><i class="fas fa-rotate"></i></button>
+        <span class="page-title" id="page-title">Início</span>
+      </div>
+      <div class="header-right">
+        <img id="header-avatar" class="header-avatar" src="" alt="Perfil" title="Sair">
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ===== HOME ===== -->
+    <div id="view-home" class="view active">
+      <div class="greeting-block">
+        <div class="greeting-hi" id="greeting-hi">Bom dia,</div>
+        <div class="greeting-name" id="greeting-name">Carregando...</div>
+      </div>
+
+      <div class="hero-card">
+        <div class="fin-nav" style="margin-bottom:10px;">
+          <div class="fin-month" style="text-align:left; font-size:14px; opacity:0.8;" id="home-hero-date"></div>
+        </div>
+        <div class="hero-label">Faturamento hoje</div>
+        <div class="hero-value" id="home-today-total">R$ 0,00</div>
+        <div class="hero-row">
+          <div class="hero-mini">
+            <div class="hero-mini-label">Atendimentos</div>
+            <div class="hero-mini-value" id="home-today-count">0</div>
+          </div>
+          <div class="hero-mini">
+            <div class="hero-mini-label">Semana</div>
+            <div class="hero-mini-value" id="home-week-total">R$ 0</div>
+          </div>
+          <div class="hero-mini">
+            <div class="hero-mini-label">Mês</div>
+            <div class="hero-mini-value" id="home-month-total">R$ 0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-icon green"><i class="fas fa-check"></i></div>
+          <div class="stat-card-value" id="home-stat-paid">R$ 0</div>
+          <div class="stat-card-label">Pago este mês</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber"><i class="fas fa-clock"></i></div>
+          <div class="stat-card-value" id="home-stat-pending">R$ 0</div>
+          <div class="stat-card-label">Em aberto</div>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <span class="section-title">Próximos dias</span>
+        <button class="section-link" id="btn-open-cal">Ver agenda <i class="fas fa-arrow-right"></i></button>
+      </div>
+      <div class="date-strip" id="date-strip"></div>
+
+      <div class="section-head" style="margin-top:4px;">
+        <span class="section-title" id="home-day-label">Hoje</span>
+      </div>
+      <div class="apt-list" id="home-apt-list"></div>
+
+      <div class="chart-card" style="margin-top:20px;">
+        <h4>Semana <span id="chart-week-range" style="font-size:12px; color:var(--text-soft); font-weight:500;"></span></h4>
+        <canvas id="weekChart" height="140"></canvas>
+      </div>
+    </div>
+
+    <!-- ===== AGENDA ===== -->
+    <div id="view-calendar" class="view">
+      <div class="cal-nav">
+        <button class="icon-btn" id="prev-month"><i class="fas fa-chevron-left"></i></button>
+        <div class="cal-month-title" id="cal-month-title">Abril 2025</div>
+        <button class="icon-btn" id="next-month"><i class="fas fa-chevron-right"></i></button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="day-panel" id="day-panel">
+        <div class="day-panel-head">
+          <div>
+            <div class="day-panel-title" id="day-panel-title">—</div>
+            <div class="day-panel-total" id="day-panel-total">R$ 0,00</div>
+          </div>
+          <div style="opacity:0.8; font-size:13px;" id="day-panel-count">0 atendimentos</div>
+        </div>
+        <div class="day-panel-list" id="day-panel-list"></div>
+      </div>
+    </div>
+
+    <!-- ===== FINANÇAS ===== -->
+    <div id="view-finance" class="view">
+      <div class="finance-hero">
+        <div class="fin-nav">
+          <button class="fin-period-btn" id="fin-prev-month"><i class="fas fa-chevron-left"></i></button>
+          <div class="fin-month" id="fin-month-title">Abril 2025</div>
+          <button class="fin-period-btn" id="fin-next-month"><i class="fas fa-chevron-right"></i></button>
+        </div>
+        <div class="fin-label">Faturamento total</div>
+        <div class="fin-value" id="fin-total">R$ 0,00</div>
+        <div class="fin-sub-row">
+          <div class="fin-sub-item">
+            <div class="fin-sub-val" id="fin-received">R$ 0</div>
+            <div class="fin-sub-lbl">Recebido</div>
+          </div>
+          <div class="fin-sub-item">
+            <div class="fin-sub-val" id="fin-projected">R$ 0</div>
+            <div class="fin-sub-lbl">Previsto</div>
+          </div>
+          <div class="fin-sub-item">
+            <div class="fin-sub-val" id="fin-count">0</div>
+            <div class="fin-sub-lbl">Serviços</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-row" id="fin-filter-row">
+        <button class="chip active" data-filter="month">Este mês</button>
+        <button class="chip" data-filter="lastMonth">Mês passado</button>
+        <button class="chip" data-filter="last2">Últimos 2 meses</button>
+        <button class="chip" data-filter="custom">Personalizado</button>
+      </div>
+
+      <div class="custom-date-wrap" id="fin-custom-dates">
+        <input type="date" id="fin-date-start" class="date-input" placeholder="De">
+        <input type="date" id="fin-date-end" class="date-input" placeholder="Até">
+        <button class="icon-btn primary" id="fin-apply-custom"><i class="fas fa-check"></i></button>
+      </div>
+
+      <div class="stat-triple">
+        <div class="triple-card">
+          <div class="triple-icon">✅</div>
+          <div class="triple-val" id="fin-stat-paid">R$ 0</div>
+          <div class="triple-lbl">Pago</div>
+        </div>
+        <div class="triple-card">
+          <div class="triple-icon">⏳</div>
+          <div class="triple-val" id="fin-stat-pending">R$ 0</div>
+          <div class="triple-lbl">Em aberto</div>
+        </div>
+        <div class="triple-card">
+          <div class="triple-icon">💸</div>
+          <div class="triple-val" id="fin-stat-credit">R$ 0</div>
+          <div class="triple-lbl">Fiado</div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h4>Distribuição por status</h4>
+        <canvas id="statusChart" height="180"></canvas>
+      </div>
+
+      <div class="chart-card">
+        <h4>Faturamento por dia</h4>
+        <canvas id="finDayChart" height="160"></canvas>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- FAB SYNC -->
+  <button class="fab-sync" id="fab-sync" title="Sincronizar agenda"><i class="fas fa-rotate"></i></button>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-nav="home"><i class="fas fa-house"></i><span>Início</span></button>
+    <button class="nav-btn" data-nav="calendar"><i class="fas fa-calendar"></i><span>Agenda</span></button>
+    <div class="nav-center" id="nav-center-profile">
+      <div class="nav-avatar-ring">
+        <div class="nav-avatar-inner">
+          <img id="nav-avatar-img" class="nav-avatar-img" src="" alt="">
+          <div class="nav-avatar-placeholder" id="nav-avatar-placeholder"><i class="fas fa-user"></i></div>
+        </div>
+      </div>
+    </div>
+    <button class="nav-btn" data-nav="finance"><i class="fas fa-chart-pie"></i><span>Finanças</span></button>
+    <button class="nav-btn" id="nav-logout"><i class="fas fa-right-from-bracket"></i><span>Sair</span></button>
+  </nav>
+</div>
+
+<!-- MODAL STATUS -->
+<div id="modal-status" class="modal-overlay">
+  <div class="modal-sheet">
+    <div class="sheet-drag"></div>
+    <div class="sheet-header">
+      <div class="sheet-title">Alterar status do atendimento</div>
+    </div>
+    <div class="sheet-body">
+      <div id="modal-status-apt-info" style="background:var(--bg);border-radius:14px;padding:14px;margin-bottom:16px;">
+        <div style="font-weight:700;" id="modal-apt-name">—</div>
+        <div style="font-size:13px;color:var(--text-soft);margin-top:2px;" id="modal-apt-val">—</div>
+      </div>
+      <button class="status-opt opt-paid"    data-status="paid"    onclick="App.setStatusFromModal('paid')">
+        <span class="opt-icon">✅</span><span class="opt-label">Pago</span><span class="opt-check"><i class="fas fa-circle-check" style="color:var(--green)"></i></span>
+      </button>
+      <button class="status-opt opt-pending" data-status="pending" onclick="App.setStatusFromModal('pending')">
+        <span class="opt-icon">⏳</span><span class="opt-label">Em aberto</span><span class="opt-check"><i class="fas fa-circle-check" style="color:var(--amber)"></i></span>
+      </button>
+      <button class="status-opt opt-credit"  data-status="credit"  onclick="App.setStatusFromModal('credit')">
+        <span class="opt-icon">💸</span><span class="opt-label">Fiado</span><span class="opt-check"><i class="fas fa-circle-check" style="color:var(--rose)"></i></span>
+      </button>
+      <button class="btn-ghost" style="margin-top:6px;" onclick="App.closeStatusModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SYNC -->
+<div id="modal-sync" class="modal-overlay">
+  <div class="modal-sheet">
+    <div class="sheet-drag"></div>
+    <div class="sheet-header">
+      <div class="sheet-title">Sincronizar Google Calendar</div>
+    </div>
+    <div class="sheet-body">
+      <p style="font-size:14px; color:var(--text-soft); margin-bottom:16px;">Escolha o período para importar os eventos da sua agenda:</p>
+      <select id="sync-period" class="sync-select">
+        <option value="currentMonth">Mês atual</option>
+        <option value="lastMonth">Último mês</option>
+        <option value="last2Months">Últimos 2 meses</option>
+        <option value="custom">Intervalo personalizado</option>
+      </select>
+      <div class="custom-date-wrap" id="sync-custom-dates">
+        <input type="date" id="sync-start" class="date-input">
+        <input type="date" id="sync-end"   class="date-input">
+      </div>
+      <button class="btn-primary" id="btn-confirm-sync"><i class="fas fa-rotate"></i> Sincronizar agora</button>
+      <button class="btn-ghost"   onclick="App.closeSyncModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ===== SCRIPTS ===== -->
+<script>
+// ─────────────────────────────
+//  FIREBASE INIT
+// ─────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+  authDomain: "glam-studio-8b65c.firebaseapp.com",
+  projectId: "glam-studio-8b65c",
+  storageBucket: "glam-studio-8b65c.firebasestorage.app",
+  messagingSenderId: "154294556895",
+  appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+const GOOGLE_CLIENT_ID = "1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com";
+const CAL_SCOPES = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events.readonly";
+
+// ─────────────────────────────
+//  STATE
+// ─────────────────────────────
+const S = {
+  user: null,
+  accessToken: null,
+  appointments: [],          // cache local
+  view: 'home',
+  calMonth: new Date(),      // mês exibido na agenda
+  finMonth: new Date(),      // mês exibido em finanças
+  selectedDate: new Date(),  // dia selecionado na agenda
+  homeStripDate: new Date(), // dia selecionado no strip da home
+  finFilter: 'month',
+  finCustomStart: null,
+  finCustomEnd: null,
+  selectedAptId: null,
+  charts: {}
+};
+
+// ─────────────────────────────
+//  HELPERS
+// ─────────────────────────────
+const fmtMoney  = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
+const fmtMoneyShort = v => {
+  if (v >= 1000) return 'R$'+(v/1000).toFixed(1)+'k';
+  return 'R$'+Math.round(v);
+};
+const todayStr  = () => new Date().toDateString();
+const dateStr   = d => new Date(d).toDateString();
+const isoDate   = d => {
+  const dd = new Date(d);
+  return `${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+};
+const ptWeekday = (d,fmt='short') => new Date(d).toLocaleString('pt-BR',{weekday:fmt});
+const ptDate    = (d,opts)        => new Date(d).toLocaleString('pt-BR', opts);
+const capitalise = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : '';
+
+function extractValue(title, desc) {
+  const txt = ((title||'') + ' ' + (desc||'')).replace(/\n/g,' ');
+  // Procura padrões: R$100, R$ 100, R$100,50, R$100.50, 100, 100.00, 100,00
+  const patterns = [
+    /[Rr]\$\s*(\d{1,6}[.,]?\d{0,2})/,
+    /valor[:\s]+(\d{1,6}[.,]?\d{0,2})/i,
+    /^(\d{1,6}[.,]\d{2})$/,
+    /\b(\d{2,6})\b/
+  ];
+  for (const re of patterns) {
+    const m = txt.match(re);
+    if (m) {
+      const v = parseFloat(m[1].replace(',','.'));
+      if (!isNaN(v) && v > 0 && v < 100000) return v;
+    }
+  }
+  return 0;
+}
+
+// ─────────────────────────────
+//  TOAST
+// ─────────────────────────────
+let toastTimer;
+function toast(msg, ms=2600) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), ms);
+}
+
+// ─────────────────────────────
+//  APP OBJECT
+// ─────────────────────────────
+const App = {
+
+  // ── INIT ──────────────────
+  async init() {
+    // Loader off após 800ms mínimo
+    setTimeout(()=>document.getElementById('global-loader').classList.add('fade-out'), 700);
+
+    // Esconder tela de login inicialmente
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app').classList.remove('visible');
+
+    auth.onAuthStateChanged(async user => {
+      if (user) {
+        S.user = user;
+        S.accessToken = localStorage.getItem('gAccessToken_'+user.uid) || null;
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('app').classList.add('visible');
+        this.updateAvatars();
+        this.updateGreeting();
+        this.initCharts();
+        this.setupEvents();
+        await this.loadAppointments();
+        this.renderAll();
+      } else {
+        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('app').classList.remove('visible');
+      }
+    });
+
+    // Redirect result
+    try {
+      const r = await auth.getRedirectResult();
+      if (r && r.credential) {
+        S.accessToken = r.credential.accessToken;
+        if (S.user) localStorage.setItem('gAccessToken_'+S.user.uid, S.accessToken);
+      }
+    } catch(_){}
+
+    document.getElementById('google-login-btn').onclick = () => this.login();
+  },
+
+  // ── LOGIN ─────────────────
+  async login() {
+    document.getElementById('login-error').textContent = '';
+    document.getElementById('login-spinner').classList.remove('hidden');
+    const prov = new firebase.auth.GoogleAuthProvider();
+    prov.addScope(CAL_SCOPES);
+    prov.setCustomParameters({ prompt: 'consent', access_type: 'offline' });
+    try {
+      const r = await auth.signInWithPopup(prov);
+      S.accessToken = r.credential?.accessToken;
+      if (S.accessToken) localStorage.setItem('gAccessToken_'+r.user.uid, S.accessToken);
+    } catch(e) {
+      if (e.code === 'auth/popup-blocked') {
+        await auth.signInWithRedirect(prov);
+      } else {
+        document.getElementById('login-error').textContent = 'Erro: ' + e.message;
+      }
+    } finally {
+      document.getElementById('login-spinner').classList.add('hidden');
+    }
+  },
+
+  logout() {
+    if (confirm('Deseja sair do Glam Studio?')) {
+      if (S.user) localStorage.removeItem('gAccessToken_'+S.user.uid);
+      auth.signOut();
+    }
+  },
+
+  // ── ENSURE TOKEN ──────────
+  async ensureToken() {
+    if (S.accessToken) return S.accessToken;
+    const prov = new firebase.auth.GoogleAuthProvider();
+    prov.addScope(CAL_SCOPES);
+    try {
+      const r = await auth.currentUser.reauthenticateWithPopup(prov);
+      S.accessToken = r.credential?.accessToken;
+      localStorage.setItem('gAccessToken_'+S.user.uid, S.accessToken);
+      return S.accessToken;
+    } catch(e) {
+      toast('⚠️ Permita acesso ao Calendar novamente.');
+      throw e;
+    }
+  },
+
+  // ── UI ────────────────────
+  updateAvatars() {
+    const url = S.user?.photoURL || '';
+    const navImg = document.getElementById('nav-avatar-img');
+    const hdrImg = document.getElementById('header-avatar');
+    if (url) {
+      navImg.src = url; navImg.style.display = 'block';
+      document.getElementById('nav-avatar-placeholder').style.display = 'none';
+      hdrImg.src = url;
+    }
+  },
+
+  updateGreeting() {
+    const h = new Date().getHours();
+    const g = h < 12 ? 'Bom dia,' : h < 18 ? 'Boa tarde,' : 'Boa noite,';
+    document.getElementById('greeting-hi').textContent = g;
+    const name = S.user?.displayName?.split(' ')[0] || 'você';
+    document.getElementById('greeting-name').textContent = name + ' ✨';
+    document.getElementById('home-hero-date').textContent =
+      capitalise(ptDate(new Date(),{weekday:'long',day:'numeric',month:'long'}));
+  },
+
+  // ── EVENTS SETUP ──────────
+  setupEvents() {
+    // nav
+    document.querySelectorAll('[data-nav]').forEach(btn => {
+      btn.onclick = () => this.navigate(btn.dataset.nav);
+    });
+    document.getElementById('nav-logout').onclick  = () => this.logout();
+    document.getElementById('nav-center-profile').onclick = () => this.logout();
+    document.getElementById('header-avatar').onclick = () => this.logout();
+
+    // calendar nav
+    document.getElementById('prev-month').onclick = () => {
+      S.calMonth = new Date(S.calMonth.getFullYear(), S.calMonth.getMonth()-1, 1);
+      this.renderCalendar();
+    };
+    document.getElementById('next-month').onclick = () => {
+      S.calMonth = new Date(S.calMonth.getFullYear(), S.calMonth.getMonth()+1, 1);
+      this.renderCalendar();
+    };
+
+    // finance nav
+    document.getElementById('fin-prev-month').onclick = () => {
+      S.finMonth = new Date(S.finMonth.getFullYear(), S.finMonth.getMonth()-1, 1);
+      this.renderFinance();
+    };
+    document.getElementById('fin-next-month').onclick = () => {
+      S.finMonth = new Date(S.finMonth.getFullYear(), S.finMonth.getMonth()+1, 1);
+      this.renderFinance();
+    };
+
+    // finance filters
+    document.querySelectorAll('#fin-filter-row .chip').forEach(c => {
+      c.onclick = () => {
+        document.querySelectorAll('#fin-filter-row .chip').forEach(x=>x.classList.remove('active'));
+        c.classList.add('active');
+        S.finFilter = c.dataset.filter;
+        const cd = document.getElementById('fin-custom-dates');
+        cd.classList.toggle('visible', S.finFilter === 'custom');
+        if (S.finFilter !== 'custom') this.renderFinance();
+      };
+    });
+    document.getElementById('fin-apply-custom').onclick = () => {
+      S.finCustomStart = document.getElementById('fin-date-start').value;
+      S.finCustomEnd   = document.getElementById('fin-date-end').value;
+      if (S.finCustomStart && S.finCustomEnd) this.renderFinance();
+      else toast('⚠️ Selecione as duas datas');
+    };
+
+    // home
+    document.getElementById('btn-open-cal').onclick = () => this.navigate('calendar');
+
+    // sync
+    document.getElementById('header-sync-btn').onclick = () => this.openSyncModal();
+    document.getElementById('fab-sync').onclick        = () => this.openSyncModal();
+    document.getElementById('sync-period').onchange = () => {
+      const cd = document.getElementById('sync-custom-dates');
+      cd.classList.toggle('visible', document.getElementById('sync-period').value === 'custom');
+    };
+    document.getElementById('btn-confirm-sync').onclick = () => this.syncCalendar();
+
+    // modal dismiss on backdrop
+    document.getElementById('modal-status').onclick = e => {
+      if (e.target === document.getElementById('modal-status')) this.closeStatusModal();
+    };
+    document.getElementById('modal-sync').onclick = e => {
+      if (e.target === document.getElementById('modal-sync')) this.closeSyncModal();
+    };
+  },
+
+  // ── NAVIGATE ──────────────
+  navigate(view) {
+    S.view = view;
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-'+view).classList.add('active');
+    document.querySelectorAll('[data-nav]').forEach(b => b.classList.remove('active'));
+    const activeBtn = document.querySelector(`[data-nav="${view}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+    const titles = { home:'Início', calendar:'Agenda', finance:'Finanças' };
+    document.getElementById('page-title').textContent = titles[view] || '';
+    if (view === 'calendar') this.renderCalendar();
+    if (view === 'finance')  this.renderFinance();
+    if (view === 'home')     this.renderHome();
+  },
+
+  // ── LOAD DATA ─────────────
+  async loadAppointments() {
+    try {
+      const snap = await db.collection('appointments')
+        .where('userId','==',S.user.uid)
+        .orderBy('start','asc')
+        .get();
+      S.appointments = snap.docs.map(d => ({id:d.id,...d.data()}));
+    } catch(e) {
+      console.warn('Firestore load error:', e);
+      S.appointments = [];
+    }
+  },
+
+  // ── RENDER ALL ────────────
+  renderAll() {
+    this.renderHome();
+    this.renderCalendar();
+    this.renderFinance();
+  },
+
+  // ── RENDER HOME ───────────
+  renderHome() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const todayApts = S.appointments.filter(a => dateStr(a.start) === today.toDateString());
+    const todayTotal = todayApts.reduce((s,a)=>s+(a.value||0),0);
+    document.getElementById('home-today-total').textContent = fmtMoney(todayTotal);
+    document.getElementById('home-today-count').textContent = todayApts.length;
+
+    // Week total
+    const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
+    const weekApts  = S.appointments.filter(a => { const d=new Date(a.start); return d>=weekStart; });
+    document.getElementById('home-week-total').textContent = fmtMoneyShort(weekApts.reduce((s,a)=>s+(a.value||0),0));
+
+    // Month total
+    const mStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const mEnd   = new Date(today.getFullYear(), today.getMonth()+1, 0, 23,59,59);
+    const mApts  = S.appointments.filter(a => { const d=new Date(a.start); return d>=mStart && d<=mEnd; });
+    document.getElementById('home-month-total').textContent = fmtMoneyShort(mApts.reduce((s,a)=>s+(a.value||0),0));
+
+    // Stats
+    document.getElementById('home-stat-paid').textContent    = fmtMoneyShort(mApts.filter(a=>a.status==='paid').reduce((s,a)=>s+(a.value||0),0));
+    document.getElementById('home-stat-pending').textContent = fmtMoneyShort(mApts.filter(a=>a.status!=='paid').reduce((s,a)=>s+(a.value||0),0));
+
+    // Date strip
+    this.renderDateStrip();
+
+    // Today list
+    this.renderAptList('home-apt-list', todayApts, false);
+
+    // Week chart
+    this.updateWeekChart();
+  },
+
+  renderDateStrip() {
+    const strip = document.getElementById('date-strip');
+    const today = new Date(); today.setHours(0,0,0,0);
+    const sel   = S.homeStripDate;
+    let html = '';
+    for (let i=-1; i<=5; i++) {
+      const d = new Date(today); d.setDate(today.getDate()+i);
+      const isToday = d.toDateString() === today.toDateString();
+      const isSel   = d.toDateString() === sel.toDateString();
+      const hasApt  = S.appointments.some(a => dateStr(a.start)===d.toDateString());
+      const classes = ['date-pill', isToday?'today-pill':'', isSel?'selected-pill':''].join(' ');
+      html += `<div class="${classes}" data-ts="${d.getTime()}">
+        <span class="pill-day">${ptWeekday(d)}</span>
+        <span class="pill-num">${d.getDate()}</span>
+        ${hasApt ? '<span class="pill-dot"></span>' : '<span style="height:9px;display:block;"></span>'}
+      </div>`;
+    }
+    strip.innerHTML = html;
+    strip.querySelectorAll('.date-pill').forEach(el => {
+      el.onclick = () => {
+        S.homeStripDate = new Date(parseInt(el.dataset.ts));
+        const apts = S.appointments.filter(a => dateStr(a.start)===S.homeStripDate.toDateString());
+        this.renderAptList('home-apt-list', apts, false);
+        document.getElementById('home-day-label').textContent =
+          S.homeStripDate.toDateString()===new Date().toDateString() ? 'Hoje' :
+          capitalise(ptDate(S.homeStripDate,{weekday:'long',day:'numeric',month:'short'}));
+        strip.querySelectorAll('.date-pill').forEach(x=>x.classList.remove('selected-pill'));
+        el.classList.add('selected-pill');
+      };
+    });
+  },
+
+  renderAptList(containerId, apts, isPanel=false) {
+    const container = document.getElementById(containerId);
+    if (!apts.length) {
+      container.innerHTML = `<div class="apt-empty"><i class="fas fa-calendar-xmark"></i>Nenhum atendimento</div>`;
+      return;
+    }
+    const sorted = [...apts].sort((a,b)=>new Date(a.start)-new Date(b.start));
+    container.innerHTML = sorted.map(a => {
+      const t = new Date(a.start);
+      const time = t.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      const badgeClass = {paid:'badge-paid',pending:'badge-pending',credit:'badge-credit'}[a.status]||'badge-pending';
+      const badgeLabel = {paid:'Pago',pending:'Aberto',credit:'Fiado'}[a.status]||'Aberto';
+      return `<div class="apt-card status-${a.status||'pending'}" data-id="${a.id}" onclick="App.openStatusModal('${a.id}')">
+        <div class="apt-time-col">
+          <div class="apt-time">${time}</div>
+        </div>
+        <div class="apt-info">
+          <div class="apt-name">${a.title||'Atendimento'}</div>
+          <div class="apt-service">${a.description||'—'}</div>
+        </div>
+        <div class="apt-right">
+          <div class="apt-value">${fmtMoney(a.value)}</div>
+          <span class="apt-badge ${badgeClass}">${badgeLabel}</span>
+        </div>
+      </div>`;
+    }).join('');
+  },
+
+  // ── CALENDAR ──────────────
+  renderCalendar() {
+    const m = S.calMonth;
+    document.getElementById('cal-month-title').textContent = capitalise(m.toLocaleString('pt-BR',{month:'long',year:'numeric'}));
+    const year=m.getFullYear(), mon=m.getMonth();
+    const firstDay = new Date(year,mon,1).getDay();
+    const daysInMonth = new Date(year,mon+1,0).getDate();
+    const prevDays = new Date(year,mon,0).getDate();
+    let html = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=>`<div class="cal-wday">${d}</div>`).join('');
+
+    // Dias do mês anterior
+    for (let i=firstDay-1; i>=0; i--) {
+      html += `<div class="cal-day other-month">${prevDays-i}</div>`;
+    }
+    // Dias do mês atual
+    const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
+    for (let d=1; d<=daysInMonth; d++) {
+      const date = new Date(year,mon,d);
+      const isToday = date.toDateString()===todayMidnight.toDateString();
+      const isSel   = date.toDateString()===S.selectedDate.toDateString();
+      const hasApt  = S.appointments.some(a=>new Date(a.start).toDateString()===date.toDateString());
+      const cls = ['cal-day', isToday?'today':'', isSel?'selected':''].filter(Boolean).join(' ');
+      html += `<div class="${cls}" data-ts="${date.getTime()}">${d}${hasApt?'<span class="cal-day-dot"></span>':''}</div>`;
+    }
+    // Completar grid
+    const total = firstDay + daysInMonth;
+    const remaining = total % 7 === 0 ? 0 : 7 - (total % 7);
+    for (let d=1; d<=remaining; d++) {
+      html += `<div class="cal-day other-month">${d}</div>`;
+    }
+    document.getElementById('cal-grid').innerHTML = html;
+    document.querySelectorAll('.cal-day[data-ts]').forEach(el => {
+      el.onclick = () => {
+        S.selectedDate = new Date(parseInt(el.dataset.ts));
+        document.querySelectorAll('.cal-day').forEach(x=>x.classList.remove('selected'));
+        el.classList.add('selected');
+        this.renderDayPanel();
+      };
+    });
+    this.renderDayPanel();
+  },
+
+  renderDayPanel() {
+    const d = S.selectedDate;
+    const apts = S.appointments.filter(a=>new Date(a.start).toDateString()===d.toDateString());
+    const total = apts.reduce((s,a)=>s+(a.value||0),0);
+    const sorted = [...apts].sort((a,b)=>new Date(a.start)-new Date(b.start));
+    document.getElementById('day-panel-title').textContent = capitalise(ptDate(d,{weekday:'long',day:'numeric',month:'long'}));
+    document.getElementById('day-panel-total').textContent = fmtMoney(total);
+    document.getElementById('day-panel-count').textContent = apts.length+' atendimento'+(apts.length===1?'':'s');
+
+    const list = document.getElementById('day-panel-list');
+    if (!sorted.length) {
+      list.innerHTML = '<div class="panel-empty"><i class="fas fa-calendar-xmark" style="font-size:24px;display:block;margin-bottom:8px;"></i>Nenhum atendimento neste dia</div>';
+      return;
+    }
+    list.innerHTML = sorted.map(a => {
+      const t = new Date(a.start);
+      const time = t.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      const badgeCls = {paid:'paid',pending:'pending',credit:'credit'}[a.status]||'pending';
+      const badgeLbl = {paid:'Pago',pending:'Aberto',credit:'Fiado'}[a.status]||'Aberto';
+      return `<div class="panel-apt" onclick="App.openStatusModal('${a.id}')">
+        <span class="panel-apt-time">${time}</span>
+        <span class="panel-apt-name">${a.title||'Atendimento'}</span>
+        <span class="panel-apt-val">${fmtMoney(a.value)}</span>
+        <span class="panel-badge ${badgeCls}">${badgeLbl}</span>
+      </div>`;
+    }).join('');
+  },
+
+  // ── FINANCE ───────────────
+  getFinanceDateRange() {
+    const now = new Date();
+    let start, end;
+    if (S.finFilter==='month') {
+      start = new Date(S.finMonth.getFullYear(), S.finMonth.getMonth(), 1);
+      end   = new Date(S.finMonth.getFullYear(), S.finMonth.getMonth()+1, 0, 23,59,59);
+    } else if (S.finFilter==='lastMonth') {
+      start = new Date(now.getFullYear(), now.getMonth()-1, 1);
+      end   = new Date(now.getFullYear(), now.getMonth(),   0, 23,59,59);
+    } else if (S.finFilter==='last2') {
+      start = new Date(now.getFullYear(), now.getMonth()-2, 1);
+      end   = new Date(now.getFullYear(), now.getMonth()+1, 0, 23,59,59);
+    } else if (S.finFilter==='custom' && S.finCustomStart && S.finCustomEnd) {
+      start = new Date(S.finCustomStart); end = new Date(S.finCustomEnd); end.setHours(23,59,59);
+    } else {
+      start = new Date(S.finMonth.getFullYear(), S.finMonth.getMonth(), 1);
+      end   = new Date(S.finMonth.getFullYear(), S.finMonth.getMonth()+1, 0, 23,59,59);
+    }
+    return { start, end };
+  },
+
+  renderFinance() {
+    const { start, end } = this.getFinanceDateRange();
+    const apts = S.appointments.filter(a => {
+      const d = new Date(a.start); return d>=start && d<=end;
+    });
+    const total   = apts.reduce((s,a)=>s+(a.value||0),0);
+    const paid    = apts.filter(a=>a.status==='paid').reduce((s,a)=>s+(a.value||0),0);
+    const pending = apts.filter(a=>a.status==='pending').reduce((s,a)=>s+(a.value||0),0);
+    const credit  = apts.filter(a=>a.status==='credit').reduce((s,a)=>s+(a.value||0),0);
+    const futureApts = apts.filter(a=>new Date(a.start)>new Date());
+    const projected  = futureApts.reduce((s,a)=>s+(a.value||0),0);
+
+    document.getElementById('fin-month-title').textContent = capitalise(S.finMonth.toLocaleString('pt-BR',{month:'long',year:'numeric'}));
+    document.getElementById('fin-total').textContent    = fmtMoney(total);
+    document.getElementById('fin-received').textContent = fmtMoneyShort(paid);
+    document.getElementById('fin-projected').textContent= fmtMoneyShort(projected);
+    document.getElementById('fin-count').textContent    = apts.length;
+    document.getElementById('fin-stat-paid').textContent   = fmtMoney(paid);
+    document.getElementById('fin-stat-pending').textContent= fmtMoney(pending);
+    document.getElementById('fin-stat-credit').textContent = fmtMoney(credit);
+
+    this.updateStatusChart(paid, pending, credit);
+    this.updateFinDayChart(apts, start, end);
+  },
+
+  // ── CHARTS ────────────────
+  initCharts() {
+    Chart.defaults.font.family = "'DM Sans', sans-serif";
+    Chart.defaults.color = '#9B7088';
+
+    // Week chart
+    S.charts.week = new Chart(document.getElementById('weekChart'), {
+      type: 'line',
+      data: {
+        labels: ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'],
+        datasets: [{
+          data: [0,0,0,0,0,0,0],
+          borderColor: '#D4006A',
+          backgroundColor: ctx => {
+            const g = ctx.chart.ctx.createLinearGradient(0,0,0,150);
+            g.addColorStop(0,'rgba(212,0,106,0.18)');
+            g.addColorStop(1,'rgba(212,0,106,0)');
+            return g;
+          },
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: '#D4006A',
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 2.5
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+          y: {
+            grid: { color: 'rgba(0,0,0,0.04)' },
+            ticks: { callback: v => fmtMoneyShort(v), font: { size: 11 } }
+          }
+        },
+        interaction: { mode: 'nearest', intersect: false }
+      }
+    });
+
+    // Status doughnut
+    S.charts.status = new Chart(document.getElementById('statusChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Pago','Em aberto','Fiado'],
+        datasets: [{
+          data: [0,0,0],
+          backgroundColor: ['#00B37E','#F59E0B','#D4006A'],
+          borderWidth: 0,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        cutout: '68%',
+        plugins: {
+          legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true, pointStyle: 'circle' } }
+        }
+      }
+    });
+
+    // Finance daily line
+    S.charts.finDay = new Chart(document.getElementById('finDayChart'), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: 'rgba(212,0,106,0.15)', borderColor: '#D4006A', borderWidth: 1.5, borderRadius: 6 }] },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+          y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { callback: v => fmtMoneyShort(v), font: { size: 10 } } }
+        }
+      }
+    });
+  },
+
+  updateWeekChart() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const monday = new Date(today); monday.setDate(today.getDate() - ((today.getDay()+6)%7));
+    const data = [0,0,0,0,0,0,0];
+    S.appointments.forEach(a => {
+      const d = new Date(a.start); d.setHours(0,0,0,0);
+      const diff = Math.round((d-monday)/86400000);
+      if (diff>=0 && diff<7) data[diff] += a.value||0;
+    });
+    const weekEnd = new Date(monday); weekEnd.setDate(monday.getDate()+6);
+    document.getElementById('chart-week-range').textContent =
+      `${monday.getDate()}/${monday.getMonth()+1} – ${weekEnd.getDate()}/${weekEnd.getMonth()+1}`;
+    S.charts.week.data.datasets[0].data = data;
+    S.charts.week.update();
+  },
+
+  updateStatusChart(paid, pending, credit) {
+    S.charts.status.data.datasets[0].data = [paid, pending, credit];
+    S.charts.status.update();
+  },
+
+  updateFinDayChart(apts, start, end) {
+    // Group by day
+    const map = {};
+    apts.forEach(a => {
+      const key = isoDate(a.start);
+      map[key] = (map[key]||0) + (a.value||0);
+    });
+    // Build labels for range
+    const labels = [], data = [];
+    const cur = new Date(start); cur.setHours(0,0,0,0);
+    const endD = new Date(end);  endD.setHours(0,0,0,0);
+    while (cur <= endD) {
+      const k = isoDate(cur);
+      if (map[k]) { // only show days with data
+        labels.push(`${cur.getDate()}/${cur.getMonth()+1}`);
+        data.push(map[k]);
+      }
+      cur.setDate(cur.getDate()+1);
+    }
+    S.charts.finDay.data.labels = labels;
+    S.charts.finDay.data.datasets[0].data = data;
+    S.charts.finDay.update();
+  },
+
+  // ── STATUS MODAL ──────────
+  openStatusModal(aptId) {
+    S.selectedAptId = aptId;
+    const apt = S.appointments.find(a=>a.id===aptId);
+    if (!apt) return;
+    document.getElementById('modal-apt-name').textContent = apt.title||'Atendimento';
+    document.getElementById('modal-apt-val').textContent  = fmtMoney(apt.value) + ' · ' + new Date(apt.start).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    // Mark current status
+    document.querySelectorAll('.status-opt').forEach(el => {
+      el.classList.toggle('active', el.dataset.status === (apt.status||'pending'));
+    });
+    document.getElementById('modal-status').classList.add('open');
+  },
+  closeStatusModal() {
+    document.getElementById('modal-status').classList.remove('open');
+    S.selectedAptId = null;
+  },
+  async setStatusFromModal(status) {
+    if (!S.selectedAptId) return;
+    try {
+      await db.collection('appointments').doc(S.selectedAptId).update({
+        status, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      const apt = S.appointments.find(a=>a.id===S.selectedAptId);
+      if (apt) apt.status = status;
+      this.closeStatusModal();
+      this.renderAll();
+      const labels = {paid:'✅ Marcado como Pago',pending:'⏳ Marcado como Aberto',credit:'💸 Marcado como Fiado'};
+      toast(labels[status]||'Status atualizado');
+    } catch(e) {
+      toast('Erro ao salvar: '+e.message);
+    }
+  },
+
+  // ── SYNC MODAL ────────────
+  openSyncModal()  { document.getElementById('modal-sync').classList.add('open'); },
+  closeSyncModal() { document.getElementById('modal-sync').classList.remove('open'); },
+
+  async syncCalendar() {
+    const btn = document.getElementById('btn-confirm-sync');
+    const fab = document.getElementById('fab-sync');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-rotate fa-spin"></i> Sincronizando...';
+    fab.classList.add('spinning');
+    toast('Conectando ao Google Calendar...');
+    try {
+      const token = await this.ensureToken();
+      const period = document.getElementById('sync-period').value;
+      const now = new Date();
+      let tMin, tMax;
+      if (period==='currentMonth') {
+        tMin = new Date(now.getFullYear(), now.getMonth(), 1);
+        tMax = new Date(now.getFullYear(), now.getMonth()+1, 0, 23,59,59);
+      } else if (period==='lastMonth') {
+        tMin = new Date(now.getFullYear(), now.getMonth()-1, 1);
+        tMax = new Date(now.getFullYear(), now.getMonth(),   0, 23,59,59);
+      } else if (period==='last2Months') {
+        tMin = new Date(now.getFullYear(), now.getMonth()-2, 1);
+        tMax = new Date(now.getFullYear(), now.getMonth()+1, 0, 23,59,59);
+      } else {
+        tMin = new Date(document.getElementById('sync-start').value);
+        tMax = new Date(document.getElementById('sync-end').value);
+        if (isNaN(tMin)||isNaN(tMax)) throw new Error('Datas inválidas');
+        tMax.setHours(23,59,59);
+      }
+      const events = await this.fetchCalendarEvents(token, tMin, tMax);
+      await this.persistEvents(events);
+      await this.loadAppointments();
+      this.renderAll();
+      this.closeSyncModal();
+      toast(`✅ ${events.length} evento(s) importado(s)!`);
+    } catch(e) {
+      console.error(e);
+      toast('❌ Erro: '+e.message);
+    } finally {
+      btn.disabled=false; btn.innerHTML='<i class="fas fa-rotate"></i> Sincronizar agora';
+      fab.classList.remove('spinning');
+    }
+  },
+
+  async fetchCalendarEvents(token, tMin, tMax) {
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${tMin.toISOString()}&timeMax=${tMax.toISOString()}&singleEvents=true&maxResults=2500&orderBy=startTime`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err?.error?.message || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    return data.items||[];
+  },
+
+  async persistEvents(events) {
+    if (!events.length) return;
+    // Batch writes (max 500 per batch)
+    const chunks = [];
+    for (let i=0;i<events.length;i+=400) chunks.push(events.slice(i,i+400));
+    for (const chunk of chunks) {
+      const batch = db.batch();
+      for (const ev of chunk) {
+        if (!ev.start?.dateTime && !ev.start?.date) continue;
+        const startStr = ev.start.dateTime || ev.start.date+'T09:00:00';
+        const endStr   = ev.end?.dateTime   || ev.end?.date  +'T10:00:00';
+        const value    = extractValue(ev.summary, ev.description);
+        const ref = db.collection('appointments').doc(ev.id);
+        // Only update status if not already set
+        batch.set(ref, {
+          userId:      S.user.uid,
+          eventId:     ev.id,
+          title:       ev.summary||'Sem título',
+          description: ev.description||'',
+          start:       startStr,
+          end:         endStr,
+          value:       value,
+          updatedAt:   firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        // Set default status only if field doesn't exist (merge won't overwrite)
+      }
+      await batch.commit();
+    }
+    // Set status = 'pending' only for new docs (no status field)
+    const snap = await db.collection('appointments')
+      .where('userId','==',S.user.uid)
+      .where('status','==',firebase.firestore.FieldValue.delete())
+      .get().catch(()=>null);
+    // Actually Firestore doesn't support that query; we handle in client:
+    events.forEach(async ev => {
+      if (!ev.start?.dateTime && !ev.start?.date) return;
+      const ref = db.collection('appointments').doc(ev.id);
+      const doc = await ref.get();
+      if (doc.exists && !doc.data().status) {
+        await ref.update({ status: 'pending' });
+      }
+    });
+  }
+};
+
+// ─────────────────────────────
+//  SERVICE WORKER (PWA)
+// ─────────────────────────────
+if ('serviceWorker' in navigator) {
+  const sw = `
+    const CACHE = 'glam-v1';
+    const ASSETS = ['/'];
+    self.addEventListener('install', e => {
+      e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+      self.skipWaiting();
+    });
+    self.addEventListener('activate', e => {
+      e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));
+      self.clients.claim();
+    });
+    self.addEventListener('fetch', e => {
+      if (e.request.method !== 'GET') return;
+      e.respondWith(
+        caches.match(e.request).then(cached => {
+          const net = fetch(e.request).then(res => {
+            if (res.ok) caches.open(CACHE).then(c=>c.put(e.request,res.clone()));
+            return res;
+          }).catch(()=>cached);
+          return cached || net;
+        })
+      );
+    });
+  `;
+  const blob = new Blob([sw], {type:'application/javascript'});
+  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+}
+
+// ─────────────────────────────
+//  BOOT
+// ─────────────────────────────
+window.App = App;
+document.addEventListener('DOMContentLoaded', () => App.init());
+</script>
+</body>
+</html>
