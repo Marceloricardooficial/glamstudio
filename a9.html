@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Glam Studio – Agenda & Financeiro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Firebase Compat (funciona sem ES modules) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --brand-purple: #4A3957;
+            --brand-light: #6B5680;
+            --accent-coral: #FF7E5F;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: #c4b5d4;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        #app { width: 100%; display: flex; justify-content: center; }
+        .font-display { font-family: 'Playfair Display', serif; }
+        .app-container {
+            width: 100%;
+            max-width: 450px;
+            background: linear-gradient(160deg, #5C4470 0%, #3D2D4D 100%);
+            min-height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+        }
+        .content-card {
+            background: #fff;
+            border-top-left-radius: 36px;
+            border-top-right-radius: 36px;
+            flex: 1;
+            padding: 28px 22px 120px;
+            overflow-y: auto;
+        }
+        .floating-nav {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(85%, 380px);
+            height: 64px;
+            background: white;
+            border-radius: 999px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+            z-index: 100;
+        }
+        .add-button {
+            position: relative;
+            top: -22px;
+            width: 62px; height: 62px;
+            background: linear-gradient(135deg, #FF7E5F, #FF6B9D);
+            border-radius: 20px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 26px;
+            box-shadow: 0 12px 24px rgba(255,126,95,0.45);
+            border: none; cursor: pointer;
+            transition: transform 0.15s;
+        }
+        .add-button:active { transform: scale(0.9) translateY(-4px); }
+        .modal-overlay {
+            position: fixed; inset: 0; z-index: 500;
+            background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
+            display: flex; align-items: flex-end; justify-content: center;
+        }
+        .modal-overlay.hidden { display: none !important; }
+        .modal-box {
+            background: white;
+            border-radius: 28px 28px 0 0;
+            padding: 28px 24px 44px;
+            width: 100%; max-width: 450px;
+            max-height: 92vh; overflow-y: auto;
+            animation: slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .field-label { display:block; font-size:10px; font-weight:800; color:#9ca3af; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:5px; }
+        .field-input {
+            width: 100%; padding: 11px 14px;
+            border: 1.5px solid #e5e7eb; border-radius: 14px;
+            font-family: 'DM Sans', sans-serif; font-size: 14px; color: #1f2937;
+            background: #f9fafb; outline: none;
+            transition: border-color 0.15s;
+        }
+        .field-input:focus { border-color: var(--brand-purple); background: white; }
+        select.field-input { appearance: auto; }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--brand-purple), var(--brand-light));
+            color: white; padding: 14px; border-radius: 16px;
+            font-weight: 700; font-size: 14px; border: none;
+            cursor: pointer; width: 100%;
+        }
+        .btn-primary:active { opacity: 0.85; transform: scale(0.98); }
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to   { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes fadeIn {
+            from { opacity:0; transform: translateY(12px); }
+            to   { opacity:1; transform: translateY(0); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.5s ease forwards; }
+        @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+        .spin { animation: spin 1s linear infinite; }
+        ::-webkit-scrollbar { width: 0; }
+    </style>
+</head>
+<body>
+
+<!-- ROOT -->
+<div id="app">
+    <div class="app-container" style="justify-content:center;align-items:center;">
+        <div style="text-align:center;color:white;">
+            <i class="fa-solid fa-circle-notch spin" style="font-size:2rem;opacity:0.5;"></i>
+            <p style="margin-top:14px;font-size:13px;opacity:0.4;letter-spacing:0.05em;">Iniciando...</p>
+        </div>
+    </div>
+</div>
+
+<!-- MODALS (fora do #app para sobreviverem ao innerHTML) -->
+<div id="modal-appointment" class="modal-overlay hidden">
+    <div class="modal-box">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+            <h3 id="modal-appt-title" class="font-display" style="font-size:19px;font-weight:700;color:#111827;">Novo Agendamento</h3>
+            <button onclick="closeModal('modal-appointment')" style="width:32px;height:32px;border-radius:50%;background:#f3f4f6;border:none;cursor:pointer;color:#6b7280;font-size:15px;">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div><label class="field-label">Data</label><input type="date" id="appt-date" class="field-input"></div>
+            <div><label class="field-label">Horário</label><input type="time" id="appt-time" class="field-input"></div>
+        </div>
+        <div style="margin-bottom:12px;">
+            <label class="field-label">Cliente</label>
+            <input type="text" id="appt-client" list="client-list" placeholder="Nome do cliente" class="field-input">
+            <datalist id="client-list"></datalist>
+        </div>
+        <div style="margin-bottom:12px;">
+            <label class="field-label">Serviço</label>
+            <input type="text" id="appt-service" list="service-list" placeholder="Tipo de serviço" class="field-input">
+            <datalist id="service-list"></datalist>
+        </div>
+        <div style="margin-bottom:12px;"><label class="field-label">Valor (R$)</label><input type="number" id="appt-value" placeholder="0,00" step="0.01" class="field-input"></div>
+        <div style="margin-bottom:4px;"><label class="field-label">Observações</label><textarea id="appt-notes" rows="2" placeholder="Notas..." class="field-input" style="resize:none;"></textarea></div>
+        <button class="btn-primary" style="margin-top:16px;" onclick="saveAppointment()"><i class="fa-solid fa-check" style="margin-right:6px;"></i>Salvar Agendamento</button>
+    </div>
+</div>
+
+<div id="modal-expense" class="modal-overlay hidden">
+    <div class="modal-box">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+            <h3 id="modal-exp-title" class="font-display" style="font-size:19px;font-weight:700;color:#111827;">Novo Lançamento</h3>
+            <button onclick="closeModal('modal-expense')" style="width:32px;height:32px;border-radius:50%;background:#f3f4f6;border:none;cursor:pointer;color:#6b7280;font-size:15px;">✕</button>
+        </div>
+        <div style="margin-bottom:12px;">
+            <label class="field-label">Tipo</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <button id="btn-entrada" onclick="setExpType('entrada')" style="padding:10px;border-radius:14px;font-size:13px;font-weight:700;border:2px solid #22c55e;color:#16a34a;background:#f0fdf4;cursor:pointer;">↑ Entrada</button>
+                <button id="btn-saida"  onclick="setExpType('saida')"  style="padding:10px;border-radius:14px;font-size:13px;font-weight:700;border:2px solid transparent;color:#9ca3af;background:#f3f4f6;cursor:pointer;">↓ Saída</button>
+            </div>
+            <input type="hidden" id="exp-type" value="entrada">
+        </div>
+        <div style="margin-bottom:12px;"><label class="field-label">Data</label><input type="date" id="exp-date" class="field-input"></div>
+        <div style="margin-bottom:12px;"><label class="field-label">Descrição</label><input type="text" id="exp-desc" placeholder="Ex: Produto, Aluguel..." class="field-input"></div>
+        <div style="margin-bottom:12px;"><label class="field-label">Valor (R$)</label><input type="number" id="exp-value" placeholder="0,00" step="0.01" class="field-input"></div>
+        <div style="margin-bottom:4px;">
+            <label class="field-label">Categoria</label>
+            <select id="exp-category" class="field-input">
+                <option value="servico">Serviço Prestado</option>
+                <option value="produto">Venda de Produto</option>
+                <option value="material">Material / Insumos</option>
+                <option value="aluguel">Aluguel</option>
+                <option value="marketing">Marketing</option>
+                <option value="outros">Outros</option>
+            </select>
+        </div>
+        <button class="btn-primary" style="margin-top:16px;" onclick="saveExpense()"><i class="fa-solid fa-check" style="margin-right:6px;"></i>Salvar Lançamento</button>
+    </div>
+</div>
+
+<div id="modal-add-type" class="modal-overlay hidden">
+    <div class="modal-box">
+        <h3 class="font-display" style="font-size:19px;font-weight:700;color:#111827;text-align:center;margin-bottom:20px;">O que deseja adicionar?</h3>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+            <button onclick="closeModal('modal-add-type');openNewAppt()" style="padding:16px 20px;border-radius:20px;background:var(--brand-purple);color:white;font-weight:700;font-size:14px;border:none;cursor:pointer;display:flex;align-items:center;gap:12px;">
+                <span style="width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-calendar-plus"></i></span>
+                Novo Agendamento
+            </button>
+            <button onclick="closeModal('modal-add-type');openNewExpense()" style="padding:16px 20px;border-radius:20px;background:var(--accent-coral);color:white;font-weight:700;font-size:14px;border:none;cursor:pointer;display:flex;align-items:center;gap:12px;">
+                <span style="width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fa-solid fa-money-bill-wave"></i></span>
+                Novo Lançamento Financeiro
+            </button>
+            <button onclick="closeModal('modal-add-type')" style="padding:12px;border-radius:16px;background:#f3f4f6;color:#6b7280;font-weight:600;font-size:13px;border:none;cursor:pointer;">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Loading -->
+<div id="loading-overlay" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+    <div style="width:56px;height:56px;border-radius:16px;background:white;display:flex;align-items:center;justify-content:center;box-shadow:0 20px 40px rgba(0,0,0,0.3);">
+        <i class="fa-solid fa-circle-notch spin" style="font-size:22px;color:var(--brand-purple);"></i>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" style="display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:998;padding:12px 20px;border-radius:16px;color:white;font-size:13px;font-weight:600;box-shadow:0 8px 20px rgba(0,0,0,0.2);max-width:300px;text-align:center;white-space:nowrap;pointer-events:none;"></div>
+
+<script>
+// ─── FIREBASE INIT ───────────────────────────────────────────
+firebase.initializeApp({
+    apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+    authDomain: "glam-studio-8b65c.firebaseapp.com",
+    projectId: "glam-studio-8b65c",
+    storageBucket: "glam-studio-8b65c.firebasestorage.app",
+    messagingSenderId: "154294556895",
+    appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+});
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// ─── STATE ───────────────────────────────────────────────────
+const S = {
+    user: null, userDoc: null, calToken: null,
+    curDate: new Date(), selDate: new Date(),
+    appointments: [], expenses: [], services: [], clients: [],
+    tab: 'agenda', editAppt: null, editExp: null, syncing: false
+};
+
+// ─── AUTH LISTENER ───────────────────────────────────────────
+auth.onAuthStateChanged(async user => {
+    if (user) {
+        S.user = user;
+        await loadUserDoc(user);
+        renderShell();
+        await loadData();
+    } else {
+        renderLogin();
+    }
+});
+
+async function loadUserDoc(user) {
+    const ref = db.collection('users').doc(user.uid);
+    const snap = await ref.get().catch(()=>null);
+    if (snap && snap.exists) {
+        S.userDoc = snap.data();
+    } else {
+        S.userDoc = { uid:user.uid, email:user.email, name:user.displayName, photo:user.photoURL, salonId:user.uid, role:'owner', calendarToken:null, createdAt:firebase.firestore.Timestamp.now() };
+        await ref.set(S.userDoc).catch(()=>{});
+    }
+    if (S.userDoc.calendarToken) S.calToken = S.userDoc.calendarToken;
+}
+
+// ─── LOGIN / LOGOUT ──────────────────────────────────────────
+function loginWithGoogle() {
+    const p = new firebase.auth.GoogleAuthProvider();
+    p.addScope('https://www.googleapis.com/auth/calendar');
+    p.addScope('https://www.googleapis.com/auth/calendar.events');
+    auth.signInWithPopup(p).then(r => {
+        const c = firebase.auth.GoogleAuthProvider.credentialFromResult(r);
+        if (c && c.accessToken) { S.calToken = c.accessToken; db.collection('users').doc(r.user.uid).update({calendarToken:c.accessToken}).catch(()=>{}); }
+    }).catch(e => showToast('Erro: '+e.message,'error'));
+}
+function logout() { auth.signOut(); }
+
+// ─── LOAD DATA ───────────────────────────────────────────────
+async function loadData() {
+    if (!S.userDoc) return;
+    await Promise.all([loadAppts(), loadExp(), loadSvc(), loadClients()]);
+    renderCalendar(); renderCurrent();
+}
+async function loadAppts() {
+    try { const s=await db.collection('appointments').where('salonId','==',S.userDoc.salonId).get(); S.appointments=s.docs.map(d=>({id:d.id,...d.data()})); } catch(e){console.error(e);}
+}
+async function loadExp() {
+    try { const s=await db.collection('expenses').where('salonId','==',S.userDoc.salonId).get(); S.expenses=s.docs.map(d=>({id:d.id,...d.data()})); } catch(e){console.error(e);}
+}
+async function loadSvc() {
+    try {
+        const s=await db.collection('services').where('salonId','==',S.userDoc.salonId).get();
+        S.services=s.docs.map(d=>({id:d.id,...d.data()}));
+        const dl=document.getElementById('service-list'); if(dl) dl.innerHTML=S.services.map(x=>`<option value="${x.name||''}">`).join('');
+    } catch(e){}
+}
+async function loadClients() {
+    try {
+        const s=await db.collection('clients').where('salonId','==',S.userDoc.salonId).get();
+        S.clients=s.docs.map(d=>({id:d.id,...d.data()}));
+        const dl=document.getElementById('client-list'); if(dl) dl.innerHTML=S.clients.map(x=>`<option value="${x.name||''}">`).join('');
+    } catch(e){}
+}
+
+// ─── APPOINTMENTS ────────────────────────────────────────────
+async function saveAppointment() {
+    const date=V('appt-date'), time=V('appt-time'), client=V('appt-client').trim(),
+          service=V('appt-service').trim(), value=parseFloat(V('appt-value'))||0, notes=V('appt-notes').trim();
+    if (!date||!time||!client||!service) { showToast('Preencha data, horário, cliente e serviço.','warning'); return; }
+    const data = { date,time,clientName:client,service,value,notes,salonId:S.userDoc.salonId,uid:S.user.uid,status:'agendado',updatedAt:firebase.firestore.Timestamp.now() };
+    try {
+        showLoading(true);
+        if (S.editAppt) { await db.collection('appointments').doc(S.editAppt).update(data); showToast('Agendamento atualizado!','success'); }
+        else { data.createdAt=firebase.firestore.Timestamp.now(); const r=await db.collection('appointments').add(data); if(S.calToken) pushCal({...data,id:r.id}); showToast('Agendamento salvo!','success'); }
+        closeModal('modal-appointment'); S.editAppt=null;
+        await loadAppts(); renderCalendar(); renderCurrent();
+    } catch(e){showToast('Erro: '+e.message,'error');}
+    finally{showLoading(false);}
+}
+async function deleteAppt(id) {
+    if(!confirm('Excluir agendamento?'))return;
+    await db.collection('appointments').doc(id).delete().catch(e=>showToast('Erro','error'));
+    S.appointments=S.appointments.filter(a=>a.id!==id); renderCalendar(); renderCurrent(); showToast('Excluído!','success');
+}
+function editAppt(id) {
+    const a=S.appointments.find(x=>x.id===id); if(!a)return;
+    S.editAppt=id;
+    document.getElementById('modal-appt-title').textContent='Editar Agendamento';
+    SV('appt-date',a.date||''); SV('appt-time',a.time||''); SV('appt-client',a.clientName||'');
+    SV('appt-service',a.service||''); SV('appt-value',a.value||''); SV('appt-notes',a.notes||'');
+    openModal('modal-appointment');
+}
+async function markDone(id) {
+    await db.collection('appointments').doc(id).update({status:'concluido',updatedAt:firebase.firestore.Timestamp.now()}).catch(()=>{});
+    const i=S.appointments.findIndex(a=>a.id===id); if(i>-1)S.appointments[i].status='concluido';
+    renderCurrent(); showToast('Concluído!','success');
+}
+
+// ─── EXPENSES ────────────────────────────────────────────────
+async function saveExpense() {
+    const date=V('exp-date'), desc=V('exp-desc').trim(), value=parseFloat(V('exp-value'))||0,
+          category=V('exp-category'), type=V('exp-type');
+    if(!date||!desc||!value){showToast('Preencha data, descrição e valor.','warning');return;}
+    const data={date,desc,value,category,type,salonId:S.userDoc.salonId,uid:S.user.uid,updatedAt:firebase.firestore.Timestamp.now()};
+    try{
+        showLoading(true);
+        if(S.editExp){await db.collection('expenses').doc(S.editExp).update(data);showToast('Atualizado!','success');}
+        else{data.createdAt=firebase.firestore.Timestamp.now();await db.collection('expenses').add(data);showToast('Salvo!','success');}
+        closeModal('modal-expense'); S.editExp=null;
+        await loadExp(); renderCurrent();
+    }catch(e){showToast('Erro: '+e.message,'error');}
+    finally{showLoading(false);}
+}
+async function deleteExp(id){
+    if(!confirm('Excluir lançamento?'))return;
+    await db.collection('expenses').doc(id).delete().catch(()=>{});
+    S.expenses=S.expenses.filter(e=>e.id!==id); renderCurrent(); showToast('Excluído!','success');
+}
+function editExp(id){
+    const e=S.expenses.find(x=>x.id===id); if(!e)return;
+    S.editExp=id;
+    document.getElementById('modal-exp-title').textContent='Editar Lançamento';
+    SV('exp-date',e.date||''); SV('exp-desc',e.desc||''); SV('exp-value',e.value||'');
+    SV('exp-category',e.category||'outros'); setExpType(e.type||'entrada');
+    openModal('modal-expense');
+}
+
+// ─── GOOGLE CALENDAR ─────────────────────────────────────────
+async function syncGoogleCalendar() {
+    if(S.syncing)return; S.syncing=true;
+    const icon=document.getElementById('sync-icon'); if(icon)icon.classList.add('spin');
+    try {
+        if(!S.calToken){
+            showToast('Autorizando Google Calendar...','info');
+            const p=new firebase.auth.GoogleAuthProvider();
+            p.addScope('https://www.googleapis.com/auth/calendar');
+            p.addScope('https://www.googleapis.com/auth/calendar.events');
+            const r=await auth.signInWithPopup(p);
+            const c=firebase.auth.GoogleAuthProvider.credentialFromResult(r);
+            S.calToken=c?.accessToken;
+            if(S.calToken){ S.userDoc.calendarToken=S.calToken; db.collection('users').doc(S.user.uid).update({calendarToken:S.calToken}).catch(()=>{}); }
+        }
+        if(!S.calToken){showToast('Não foi possível autorizar.','error');return;}
+        showToast('Importando eventos...','info');
+        await importCal();
+        await loadAppts(); renderCalendar(); renderCurrent();
+        showToast('Sincronizado!','success');
+    }catch(e){showToast('Erro: '+e.message,'error');console.error(e);}
+    finally{S.syncing=false; if(icon)icon.classList.remove('spin');}
+}
+
+async function importCal() {
+    const now=new Date();
+    const tMin=new Date(now.getFullYear(),now.getMonth(),1).toISOString();
+    const tMax=new Date(now.getFullYear(),now.getMonth()+2,0,23,59).toISOString();
+    const url=`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}&singleEvents=true&orderBy=startTime&maxResults=250`;
+    const r=await fetch(url,{headers:{Authorization:`Bearer ${S.calToken}`}});
+    if(r.status===401){S.calToken=null;S.userDoc.calendarToken=null;db.collection('users').doc(S.user.uid).update({calendarToken:null}).catch(()=>{});throw new Error('Token expirado, tente novamente.');}
+    if(!r.ok)throw new Error('Erro Calendar: '+r.status);
+    const {items=[]}=await r.json();
+    for(const ev of items){
+        const raw=ev.start?.dateTime||ev.start?.date; if(!raw)continue;
+        const d=new Date(raw);
+        const dateStr=dateToStr(d);
+        const timeStr=ev.start?.dateTime?`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`:'00:00';
+        const txt=(ev.description||'')+' '+(ev.summary||'');
+        const m=txt.match(/R\$\s?([\d.,]+)/i);
+        const value=m?parseFloat(m[1].replace(/\./g,'').replace(',','.')):0;
+        const existing=S.appointments.find(a=>a.googleEventId===ev.id);
+        const payload={date:dateStr,time:timeStr,clientName:ev.summary||'Evento',service:ev.summary||'Sincronizado',value,notes:ev.description||'',salonId:S.userDoc.salonId,uid:S.user.uid,status:'agendado',googleEventId:ev.id,updatedAt:firebase.firestore.Timestamp.now()};
+        if(existing){await db.collection('appointments').doc(existing.id).update(payload).catch(()=>{});}
+        else{payload.createdAt=firebase.firestore.Timestamp.now();await db.collection('appointments').add(payload).catch(()=>{});}
+    }
+}
+
+async function pushCal(a) {
+    if(!S.calToken)return;
+    try{
+        const s=new Date(`${a.date}T${a.time}:00`);
+        const e=new Date(s); e.setHours(e.getHours()+1);
+        const f=dt=>dt.toISOString().slice(0,19);
+        await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
+            method:'POST',
+            headers:{Authorization:`Bearer ${S.calToken}`,'Content-Type':'application/json'},
+            body:JSON.stringify({summary:`${a.clientName} – ${a.service}`,description:`R$ ${(a.value||0).toFixed(2).replace('.',',')}\n${a.notes||''}`,start:{dateTime:f(s),timeZone:'America/Sao_Paulo'},end:{dateTime:f(e),timeZone:'America/Sao_Paulo'}})
+        });
+    }catch(e){console.error('pushCal',e);}
+}
+
+// ─── RENDER SHELL ────────────────────────────────────────────
+function renderShell() {
+    const u=S.user;
+    document.getElementById('app').innerHTML=`
+    <div class="app-container">
+        <!-- Header -->
+        <header style="padding:40px 24px 18px;display:flex;align-items:center;justify-content:space-between;color:white;">
+            <div>
+                <p style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:800;text-transform:uppercase;letter-spacing:0.1em;">Olá,</p>
+                <h1 class="font-display" style="font-size:24px;font-weight:700;line-height:1.1;">${(u.displayName||'').split(' ')[0]||'Profissional'}</h1>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <button id="sync-btn" onclick="syncGoogleCalendar()" style="background:rgba(255,255,255,0.13);border:1px solid rgba(255,255,255,0.22);color:white;padding:8px 14px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;letter-spacing:0.04em;">
+                    <i id="sync-icon" class="fa-brands fa-google" style="font-size:10px;"></i> SINCRONIZAR
+                </button>
+                <button onclick="logout()" title="Sair" style="width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,255,255,0.25);overflow:hidden;padding:0;cursor:pointer;background:transparent;flex-shrink:0;">
+                    <img src="${u.photoURL||'https://api.dicebear.com/7.x/avataaars/svg?seed=Glam'}" style="width:100%;height:100%;object-fit:cover;">
+                </button>
+            </div>
+        </header>
+        <!-- Calendar -->
+        <section id="cal-section" style="padding:0 24px 18px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;color:white;margin-bottom:16px;">
+                <h2 id="monthDisplay" class="font-display" style="font-size:22px;font-weight:700;"></h2>
+                <div style="display:flex;gap:12px;">
+                    <button onclick="prevMonth()" style="background:rgba(255,255,255,0.12);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;">‹</button>
+                    <button onclick="nextMonth()" style="background:rgba(255,255,255,0.12);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;">›</button>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;color:rgba(255,255,255,0.32);font-size:9px;font-weight:800;text-transform:uppercase;margin-bottom:8px;letter-spacing:0.04em;">
+                <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+            </div>
+            <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px 1px;"></div>
+        </section>
+        <!-- Content -->
+        <main id="main-content" class="content-card"></main>
+        <!-- Nav -->
+        <nav class="floating-nav">
+            <button id="nav-agenda" onclick="setTab('agenda')" style="display:flex;flex-direction:column;align-items:center;background:none;border:none;cursor:pointer;color:var(--brand-purple);">
+                <i class="fa-solid fa-calendar-days" style="font-size:20px;"></i>
+                <span style="font-size:9px;font-weight:800;text-transform:uppercase;margin-top:3px;">Agenda</span>
+            </button>
+            <button class="add-button" onclick="openModal('modal-add-type')"><i class="fa-solid fa-plus"></i></button>
+            <button id="nav-fin" onclick="setTab('financeiro')" style="display:flex;flex-direction:column;align-items:center;background:none;border:none;cursor:pointer;color:#9ca3af;">
+                <i class="fa-solid fa-chart-line" style="font-size:20px;"></i>
+                <span style="font-size:9px;font-weight:800;text-transform:uppercase;margin-top:3px;">Financeiro</span>
+            </button>
+        </nav>
+    </div>`;
+}
+
+// ─── LOGIN ───────────────────────────────────────────────────
+function renderLogin() {
+    document.getElementById('app').innerHTML=`
+    <div class="app-container" style="justify-content:center;align-items:center;padding:40px 32px;">
+        <div style="text-align:center;margin-bottom:52px;" class="animate-fadeIn">
+            <div style="width:96px;height:96px;margin:0 auto 20px;border-radius:28px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;">
+                <i class="fa-solid fa-spa" style="font-size:42px;color:rgba(255,255,255,0.8);"></i>
+            </div>
+            <h1 class="font-display" style="font-size:38px;color:white;font-weight:700;margin-bottom:8px;">Glam Studio</h1>
+            <p style="color:rgba(255,255,255,0.38);font-size:13px;">Agenda & Financeiro Estética</p>
+        </div>
+        <button onclick="loginWithGoogle()" style="width:100%;background:white;color:#111827;padding:16px 24px;border-radius:18px;font-weight:700;font-size:14px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 16px 36px rgba(0,0,0,0.3);">
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" style="width:20px;height:20px;">
+            Entrar com Google
+        </button>
+        <p style="color:rgba(255,255,255,0.22);font-size:11px;margin-top:28px;text-align:center;line-height:1.6;max-width:260px;">
+            O login também solicita permissão para sincronizar com o Google Calendar
+        </p>
+    </div>`;
+}
+
+// ─── TABS ────────────────────────────────────────────────────
+function setTab(tab) {
+    S.tab=tab;
+    const na=document.getElementById('nav-agenda'), nf=document.getElementById('nav-fin'), cs=document.getElementById('cal-section');
+    if(na)na.style.color=tab==='agenda'?'var(--brand-purple)':'#9ca3af';
+    if(nf)nf.style.color=tab==='financeiro'?'var(--brand-purple)':'#9ca3af';
+    if(cs)cs.style.display=tab==='agenda'?'':'none';
+    renderCurrent();
+}
+function renderCurrent(){if(S.tab==='agenda')renderAgenda();else renderFin();}
+
+// ─── AGENDA VIEW ─────────────────────────────────────────────
+function renderAgenda(){
+    const mc=document.getElementById('main-content'); if(!mc)return;
+    const ds=dateToStr(S.selDate);
+    const list=S.appointments.filter(a=>a.date===ds).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+    const MN=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const DN=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+    const lbl=`${DN[S.selDate.getDay()]}, ${S.selDate.getDate()} de ${MN[S.selDate.getMonth()]}`;
+    const tot=list.reduce((s,a)=>s+(a.value||0),0);
+    const dot={agendado:'#a78bfa',concluido:'#22c55e',cancelado:'#f87171'};
+
+    let h=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div>
+            <h2 class="font-display" style="font-size:21px;font-weight:700;color:#111827;">Agenda</h2>
+            <p style="font-size:12px;color:#9ca3af;font-weight:500;margin-top:2px;">${lbl}</p>
+        </div>
+        <div style="text-align:right;">
+            <p style="font-size:9px;color:#9ca3af;font-weight:800;text-transform:uppercase;">Total do dia</p>
+            <p style="font-size:15px;font-weight:800;color:#16a34a;">R$ ${tot.toFixed(2).replace('.',',')}</p>
+        </div>
+    </div>`;
+
+    if(!list.length) h+=`<div style="display:flex;flex-direction:column;align-items:center;padding:52px 0;color:#d1d5db;">
+        <i class="fa-regular fa-calendar-xmark" style="font-size:46px;margin-bottom:12px;"></i>
+        <p style="font-size:14px;font-weight:600;color:#9ca3af;">Nenhum agendamento</p>
+        <p style="font-size:12px;color:#d1d5db;margin-top:4px;">Toque em + para adicionar</p>
+    </div>`;
+
+    list.forEach(a=>{
+        const sync=a.googleEventId?`<span style="font-size:9px;background:#eff6ff;color:#3b82f6;border-radius:999px;padding:2px 7px;font-weight:700;margin-left:2px;"><i class="fa-brands fa-google" style="font-size:8px;"></i></span>`:'';
+        h+=`<div style="position:relative;padding-left:22px;border-left:2px solid #f3f4f6;margin-bottom:14px;">
+            <div style="position:absolute;left:-7px;top:14px;width:12px;height:12px;border-radius:50%;background:${dot[a.status]||'#d1d5db'};border:2px solid white;"></div>
+            <div style="background:#f9fafb;border-radius:20px;border:1px solid #f3f4f6;padding:13px;">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-bottom:4px;">
+                            <span style="font-size:13px;font-weight:800;color:var(--brand-purple);">${a.time||'--:--'}</span>
+                            ${a.value?`<span style="font-size:11px;font-weight:700;color:#16a34a;background:#f0fdf4;padding:2px 8px;border-radius:999px;">R$ ${a.value.toFixed(2).replace('.',',')}</span>`:''}
+                            ${sync}
+                        </div>
+                        <p style="font-size:13px;font-weight:600;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.clientName} – ${a.service}</p>
+                        ${a.notes?`<p style="font-size:11px;color:#9ca3af;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.notes}</p>`:''}
+                    </div>
+                    <div style="display:flex;gap:4px;flex-shrink:0;">
+                        ${a.status!=='concluido'?`<button onclick="markDone('${a.id}')" style="padding:7px;background:#f0fdf4;border:none;border-radius:10px;color:#22c55e;cursor:pointer;"><i class="fa-solid fa-check" style="font-size:11px;"></i></button>`:`<span style="padding:7px;font-size:13px;color:#22c55e;font-weight:800;">✓</span>`}
+                        <button onclick="editAppt('${a.id}')" style="padding:7px;background:#eff6ff;border:none;border-radius:10px;color:#3b82f6;cursor:pointer;"><i class="fa-solid fa-pen" style="font-size:11px;"></i></button>
+                        <button onclick="deleteAppt('${a.id}')" style="padding:7px;background:#fef2f2;border:none;border-radius:10px;color:#ef4444;cursor:pointer;"><i class="fa-solid fa-trash" style="font-size:11px;"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    });
+    mc.innerHTML=h;
+}
+
+// ─── FINANCEIRO VIEW ─────────────────────────────────────────
+function renderFin(){
+    const mc=document.getElementById('main-content'); if(!mc)return;
+    const now=new Date();
+    const mStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const mExp=S.expenses.filter(e=>(e.date||'').startsWith(mStr));
+    const mAppts=S.appointments.filter(a=>(a.date||'').startsWith(mStr)&&a.status==='concluido');
+    const rec=mExp.filter(e=>e.type==='entrada').reduce((s,e)=>s+(e.value||0),0);
+    const desp=mExp.filter(e=>e.type==='saida').reduce((s,e)=>s+(e.value||0),0);
+    const agRev=mAppts.reduce((s,a)=>s+(a.value||0),0);
+    const totRec=rec+agRev, saldo=totRec-desp;
+
+    const all=[
+        ...S.expenses.map(e=>({...e,_s:'exp'})),
+        ...S.appointments.filter(a=>a.status==='concluido'&&(a.value||0)>0).map(a=>({...a,_s:'appt',type:'entrada',desc:`${a.clientName} – ${a.service}`}))
+    ].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,30);
+
+    const cBg={servico:'#f3e8ff',produto:'#dbeafe',material:'#fef9c3',aluguel:'#fee2e2',marketing:'#fce7f3',outros:'#f3f4f6'};
+    const cFg={servico:'#7c3aed',produto:'#1d4ed8',material:'#a16207',aluguel:'#b91c1c',marketing:'#9d174d',outros:'#4b5563'};
+
+    let h=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <h2 class="font-display" style="font-size:21px;font-weight:700;color:#111827;">Financeiro</h2>
+        <span style="font-size:11px;color:#9ca3af;font-weight:700;text-transform:capitalize;">${now.toLocaleString('pt-BR',{month:'long',year:'numeric'})}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;">
+        <div style="background:#f0fdf4;border-radius:18px;padding:12px 8px;text-align:center;border:1px solid #bbf7d0;">
+            <p style="font-size:9px;color:#16a34a;font-weight:800;text-transform:uppercase;margin-bottom:4px;">Receita</p>
+            <p style="font-size:13px;font-weight:800;color:#15803d;">R$${totRec.toFixed(0)}</p>
+        </div>
+        <div style="background:#fef2f2;border-radius:18px;padding:12px 8px;text-align:center;border:1px solid #fecaca;">
+            <p style="font-size:9px;color:#dc2626;font-weight:800;text-transform:uppercase;margin-bottom:4px;">Despesas</p>
+            <p style="font-size:13px;font-weight:800;color:#b91c1c;">R$${desp.toFixed(0)}</p>
+        </div>
+        <div style="background:${saldo>=0?'#eff6ff':'#fff7ed'};border-radius:18px;padding:12px 8px;text-align:center;border:1px solid ${saldo>=0?'#bfdbfe':'#fed7aa'};">
+            <p style="font-size:9px;color:${saldo>=0?'#2563eb':'#ea580c'};font-weight:800;text-transform:uppercase;margin-bottom:4px;">Saldo</p>
+            <p style="font-size:13px;font-weight:800;color:${saldo>=0?'#1d4ed8':'#c2410c'};">R$${Math.abs(saldo).toFixed(0)}</p>
+        </div>
+    </div>
+    <div style="background:linear-gradient(135deg,#4A3957,#6B5680);border-radius:20px;padding:15px;margin-bottom:18px;color:white;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:9px;">
+            <span style="font-size:12px;font-weight:600;opacity:0.7;">Concluídos no mês</span>
+            <span style="font-size:12px;font-weight:800;">${mAppts.length} atend.</span>
+        </div>
+        <div style="background:rgba(255,255,255,0.18);border-radius:999px;height:6px;overflow:hidden;">
+            <div style="background:#FF7E5F;height:6px;border-radius:999px;width:${Math.min(100,mAppts.length*5)}%;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:7px;">
+            <span style="font-size:11px;opacity:0.5;">Meta: 20</span>
+            <span style="font-size:12px;font-weight:800;color:#FF7E5F;">R$ ${agRev.toFixed(2).replace('.',',')}</span>
+        </div>
+    </div>
+    <h3 style="font-size:11px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Lançamentos Recentes</h3>
+    ${!all.length?'<p style="text-align:center;color:#d1d5db;font-size:13px;padding:20px 0;">Nenhum lançamento ainda</p>':''}
+    <div style="display:flex;flex-direction:column;gap:8px;">
+    ${all.map(t=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:12px;background:#f9fafb;border-radius:16px;border:1px solid #f3f4f6;">
+        <div style="width:36px;height:36px;border-radius:12px;background:${t.type==='entrada'?'#f0fdf4':'#fef2f2'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="fa-solid ${t.type==='entrada'?'fa-arrow-up':'fa-arrow-down'}" style="font-size:13px;color:${t.type==='entrada'?'#22c55e':'#ef4444'};"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+            <p style="font-size:13px;font-weight:600;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.desc||t.clientName||'—'}</p>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
+                <span style="font-size:10px;color:#9ca3af;">${t.date||''}</span>
+                ${t.category?`<span style="font-size:9px;padding:1px 7px;border-radius:999px;font-weight:700;background:${cBg[t.category]||'#f3f4f6'};color:${cFg[t.category]||'#4b5563'};">${t.category}</span>`:''}
+            </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+            <p style="font-size:13px;font-weight:800;color:${t.type==='entrada'?'#16a34a':'#dc2626'};">${t.type==='entrada'?'+':'-'}R$ ${(t.value||0).toFixed(2).replace('.',',')}</p>
+            ${t._s==='exp'?`<div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px;">
+                <button onclick="editExp('${t.id}')" style="padding:4px 7px;background:#eff6ff;border:none;border-radius:8px;color:#3b82f6;cursor:pointer;font-size:10px;"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteExp('${t.id}')" style="padding:4px 7px;background:#fef2f2;border:none;border-radius:8px;color:#ef4444;cursor:pointer;font-size:10px;"><i class="fa-solid fa-trash"></i></button>
+            </div>`:''}
+        </div>
+    </div>`).join('')}
+    </div>`;
+    mc.innerHTML=h;
+}
+
+// ─── CALENDAR RENDER ─────────────────────────────────────────
+function renderCalendar(){
+    const d=S.curDate;
+    const MN=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const md=document.getElementById('monthDisplay'); if(md)md.textContent=`${MN[d.getMonth()]} ${d.getFullYear()}`;
+    const g=document.getElementById('calGrid'); if(!g)return;
+    g.innerHTML='';
+    const first=new Date(d.getFullYear(),d.getMonth(),1).getDay();
+    const dim=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+    const prev=new Date(d.getFullYear(),d.getMonth(),0).getDate();
+    const today=new Date(), sel=S.selDate;
+    for(let i=first-1;i>=0;i--){const el=mk('div');el.style.cssText='text-align:center;padding:5px 2px;font-size:12px;color:rgba(255,255,255,0.18);';el.textContent=prev-i;g.appendChild(el);}
+    for(let i=1;i<=dim;i++){
+        const ds=dateToStr(new Date(d.getFullYear(),d.getMonth(),i));
+        const hasA=S.appointments.some(a=>a.date===ds);
+        const isT=today.getDate()===i&&today.getMonth()===d.getMonth()&&today.getFullYear()===d.getFullYear();
+        const isS=sel.getDate()===i&&sel.getMonth()===d.getMonth()&&sel.getFullYear()===d.getFullYear();
+        const el=mk('div');
+        el.style.cssText=`position:relative;text-align:center;padding:5px 2px;font-size:12px;border-radius:50%;cursor:pointer;transition:all 0.12s;user-select:none;${isS?'background:white;color:#4A3957;font-weight:900;transform:scale(1.12);box-shadow:0 3px 10px rgba(0,0,0,0.2);':isT?'background:rgba(255,255,255,0.2);color:white;font-weight:700;':'color:white;'}`;
+        el.textContent=i;
+        if(hasA&&!isS){const dot=mk('div');dot.style.cssText='position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:#FF7E5F;';el.appendChild(dot);}
+        el.onclick=()=>selectDay(i);
+        g.appendChild(el);
+    }
+}
+function selectDay(day){S.selDate=new Date(S.curDate.getFullYear(),S.curDate.getMonth(),day);renderCalendar();if(S.tab==='agenda')renderAgenda();}
+function prevMonth(){S.curDate=new Date(S.curDate.getFullYear(),S.curDate.getMonth()-1,1);renderCalendar();}
+function nextMonth(){S.curDate=new Date(S.curDate.getFullYear(),S.curDate.getMonth()+1,1);renderCalendar();}
+
+// ─── MODALS ──────────────────────────────────────────────────
+function openModal(id){document.getElementById(id)?.classList.remove('hidden');}
+function closeModal(id){document.getElementById(id)?.classList.add('hidden');}
+
+function openNewAppt(){
+    S.editAppt=null;
+    document.getElementById('modal-appt-title').textContent='Novo Agendamento';
+    SV('appt-date',dateToStr(S.selDate));SV('appt-time','');SV('appt-client','');SV('appt-service','');SV('appt-value','');SV('appt-notes','');
+    openModal('modal-appointment');
+}
+function openNewExpense(){
+    S.editExp=null;
+    document.getElementById('modal-exp-title').textContent='Novo Lançamento';
+    SV('exp-date',dateToStr(new Date()));SV('exp-desc','');SV('exp-value','');setExpType('entrada');
+    openModal('modal-expense');
+}
+function setExpType(t){
+    SV('exp-type',t);
+    const be=document.getElementById('btn-entrada'), bs=document.getElementById('btn-saida');
+    if(t==='entrada'){
+        be.style.cssText='padding:10px;border-radius:14px;font-size:13px;font-weight:700;border:2px solid #22c55e;color:#16a34a;background:#f0fdf4;cursor:pointer;';
+        bs.style.cssText='padding:10px;border-radius:14px;font-size:13px;font-weight:700;border:2px solid transparent;color:#9ca3af;background:#f3f4f6;cursor:pointer;';
+    }else{
+        bs.style.cssText='padding:10px;border-radius:14px;font-size:13px;font-weight:700;border:2px solid #ef4444;color:#b91c1c;background:#fef2f2;cursor:pointer;';
+        be.style.cssText='padding:10px;border-radius:14px;font-size:13px;font-weight:700;border:2px solid transparent;color:#9ca3af;background:#f3f4f6;cursor:pointer;';
+    }
+}
+
+// ─── UTILS ───────────────────────────────────────────────────
+function V(id){return(document.getElementById(id)||{}).value||'';}
+function SV(id,v){const el=document.getElementById(id);if(el)el.value=v;}
+function mk(t){return document.createElement(t);}
+function dateToStr(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function showLoading(v){const el=document.getElementById('loading-overlay');if(el)el.style.display=v?'flex':'none';}
+let _tt;
+function showToast(msg,type='info'){
+    const el=document.getElementById('toast'); if(!el)return;
+    const bg={success:'#22c55e',error:'#ef4444',warning:'#f59e0b',info:'#3b82f6'};
+    el.style.background=bg[type]||bg.info; el.textContent=msg; el.style.display='block';
+    clearTimeout(_tt); _tt=setTimeout(()=>{el.style.display='none';},3200);
+}
+</script>
+</body>
+</html>
