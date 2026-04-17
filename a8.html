@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Glam Studio – Agenda & Financeiro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
+            from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
+            getDocs, query, where, orderBy, setDoc, getDoc, Timestamp }
+            from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+            authDomain: "glam-studio-8b65c.firebaseapp.com",
+            projectId: "glam-studio-8b65c",
+            storageBucket: "glam-studio-8b65c.firebasestorage.app",
+            messagingSenderId: "154294556895",
+            appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Google Auth Provider com escopo Calendar
+        const googleProvider = new GoogleAuthProvider();
+        googleProvider.addScope('https://www.googleapis.com/auth/calendar');
+        googleProvider.addScope('https://www.googleapis.com/auth/calendar.events');
+
+        // ===================== STATE =====================
+        window.APP = {
+            user: null,
+            userDoc: null,
+            calendarToken: null,
+            currentDate: new Date(),
+            selectedDate: new Date(),
+            appointments: [],
+            expenses: [],
+            services: [],
+            clients: [],
+            activeTab: 'agenda',
+            editingAppointment: null,
+            editingExpense: null,
+            syncing: false,
+        };
+
+        // ===================== AUTH =====================
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                APP.user = user;
+                await loadUserDoc(user);
+                renderApp();
+                await loadData();
+            } else {
+                APP.user = null;
+                renderLogin();
+            }
+        });
+
+        async function loadUserDoc(user) {
+            try {
+                const ref = doc(db, 'users', user.uid);
+                const snap = await getDoc(ref);
+                if (snap.exists()) {
+                    APP.userDoc = snap.data();
+                } else {
+                    const newUser = {
+                        uid: user.uid,
+                        email: user.email,
+                        name: user.displayName,
+                        photo: user.photoURL,
+                        salonId: user.uid,
+                        role: 'owner',
+                        calendarId: null,
+                        createdAt: Timestamp.now()
+                    };
+                    await setDoc(ref, newUser);
+                    APP.userDoc = newUser;
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        window.loginWithGoogle = async function() {
+            try {
+                showLoading(true);
+                const result = await signInWithPopup(auth, googleProvider);
+                // pega token de acesso ao calendar
+                const credential = GoogleAuthProvider.credentialFromResult(result);
+                APP.calendarToken = credential.accessToken;
+                // salva token no userDoc
+                if (APP.userDoc) {
+                    await updateDoc(doc(db, 'users', result.user.uid), { calendarToken: APP.calendarToken });
+                }
+            } catch(e) {
+                showLoading(false);
+                showToast('Erro no login: ' + e.message, 'error');
+            }
+        };
+
+        window.logout = async function() {
+            await signOut(auth);
+        };
+
+        // ===================== LOAD DATA =====================
+        async function loadData() {
+            await Promise.all([
+                loadAppointments(),
+                loadExpenses(),
+                loadServices(),
+                loadClients()
+            ]);
+            renderCurrentView();
+        }
+
+        async function loadAppointments() {
+            try {
+                const q = query(collection(db, 'appointments'), where('salonId','==', APP.userDoc.salonId));
+                const snap = await getDocs(q);
+                APP.appointments = snap.docs.map(d => ({id: d.id, ...d.data()}));
+            } catch(e) { console.error(e); }
+        }
+
+        async function loadExpenses() {
+            try {
+                const q = query(collection(db, 'expenses'), where('salonId','==', APP.userDoc.salonId));
+                const snap = await getDocs(q);
+                APP.expenses = snap.docs.map(d => ({id: d.id, ...d.data()}));
+            } catch(e) { console.error(e); }
+        }
+
+        async function loadServices() {
+            try {
+                const q = query(collection(db, 'services'), where('salonId','==', APP.userDoc.salonId));
+                const snap = await getDocs(q);
+                APP.services = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                renderServiceOptions();
+            } catch(e) { console.error(e); }
+        }
+
+        async function loadClients() {
+            try {
+                const q = query(collection(db, 'clients'), where('salonId','==', APP.userDoc.salonId));
+                const snap = await getDocs(q);
+                APP.clients = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                renderClientOptions();
+            } catch(e) { console.error(e); }
+        }
+
+        // ===================== APPOINTMENTS =====================
+        window.saveAppointment = async function() {
+            const date = document.getElementById('appt-date').value;
+            const time = document.getElementById('appt-time').value;
+            const clientName = document.getElementById('appt-client').value.trim();
+            const service = document.getElementById('appt-service').value.trim();
+            const value = parseFloat(document.getElementById('appt-value').value) || 0;
+            const notes = document.getElementById('appt-notes').value.trim();
+
+            if (!date || !time || !clientName || !service) {
+                showToast('Preencha data, horário, cliente e serviço.', 'warning'); return;
+            }
+
+            const data = {
+                date, time, clientName, service, value,
+                notes, salonId: APP.userDoc.salonId,
+                uid: APP.user.uid, status: 'agendado',
+                updatedAt: Timestamp.now()
+            };
+
+            try {
+                showLoading(true);
+                if (APP.editingAppointment) {
+                    await updateDoc(doc(db, 'appointments', APP.editingAppointment), data);
+                    showToast('Agendamento atualizado!', 'success');
+                } else {
+                    data.createdAt = Timestamp.now();
+                    const ref = await addDoc(collection(db, 'appointments'), data);
+                    // Sincroniza com Google Calendar se token disponível
+                    if (APP.userDoc?.calendarToken) {
+                        await syncToGoogleCalendar({...data, id: ref.id});
+                    }
+                    showToast('Agendamento salvo!', 'success');
+                }
+                closeModal('modal-appointment');
+                APP.editingAppointment = null;
+                await loadAppointments();
+                renderCurrentView();
+            } catch(e) {
+                showToast('Erro: ' + e.message, 'error');
+            } finally { showLoading(false); }
+        };
+
+        window.deleteAppointment = async function(id) {
+            if (!confirm('Excluir agendamento?')) return;
+            try {
+                await deleteDoc(doc(db, 'appointments', id));
+                APP.appointments = APP.appointments.filter(a => a.id !== id);
+                renderCurrentView();
+                showToast('Excluído!', 'success');
+            } catch(e) { showToast('Erro: ' + e.message, 'error'); }
+        };
+
+        window.editAppointment = function(id) {
+            const appt = APP.appointments.find(a => a.id === id);
+            if (!appt) return;
+            APP.editingAppointment = id;
+            document.getElementById('appt-date').value = appt.date || '';
+            document.getElementById('appt-time').value = appt.time || '';
+            document.getElementById('appt-client').value = appt.clientName || '';
+            document.getElementById('appt-service').value = appt.service || '';
+            document.getElementById('appt-value').value = appt.value || '';
+            document.getElementById('appt-notes').value = appt.notes || '';
+            document.getElementById('modal-appointment-title').textContent = 'Editar Agendamento';
+            openModal('modal-appointment');
+        };
+
+        window.markDone = async function(id) {
+            try {
+                await updateDoc(doc(db, 'appointments', id), { status: 'concluido', updatedAt: Timestamp.now() });
+                const i = APP.appointments.findIndex(a => a.id === id);
+                if (i > -1) APP.appointments[i].status = 'concluido';
+                renderCurrentView();
+                showToast('Marcado como concluído!', 'success');
+            } catch(e) { showToast('Erro: ' + e.message, 'error'); }
+        };
+
+        // ===================== EXPENSES =====================
+        window.saveExpense = async function() {
+            const date = document.getElementById('exp-date').value;
+            const desc = document.getElementById('exp-desc').value.trim();
+            const value = parseFloat(document.getElementById('exp-value').value) || 0;
+            const category = document.getElementById('exp-category').value;
+            const type = document.getElementById('exp-type').value;
+
+            if (!date || !desc || !value) {
+                showToast('Preencha data, descrição e valor.', 'warning'); return;
+            }
+
+            const data = { date, desc, value, category, type, salonId: APP.userDoc.salonId, uid: APP.user.uid, updatedAt: Timestamp.now() };
+
+            try {
+                showLoading(true);
+                if (APP.editingExpense) {
+                    await updateDoc(doc(db, 'expenses', APP.editingExpense), data);
+                    showToast('Lançamento atualizado!', 'success');
+                } else {
+                    data.createdAt = Timestamp.now();
+                    await addDoc(collection(db, 'expenses'), data);
+                    showToast('Lançamento salvo!', 'success');
+                }
+                closeModal('modal-expense');
+                APP.editingExpense = null;
+                await loadExpenses();
+                renderCurrentView();
+            } catch(e) {
+                showToast('Erro: ' + e.message, 'error');
+            } finally { showLoading(false); }
+        };
+
+        window.deleteExpense = async function(id) {
+            if (!confirm('Excluir lançamento?')) return;
+            try {
+                await deleteDoc(doc(db, 'expenses', id));
+                APP.expenses = APP.expenses.filter(e => e.id !== id);
+                renderCurrentView();
+                showToast('Excluído!', 'success');
+            } catch(e) { showToast('Erro: ' + e.message, 'error'); }
+        };
+
+        window.editExpense = function(id) {
+            const exp = APP.expenses.find(e => e.id === id);
+            if (!exp) return;
+            APP.editingExpense = id;
+            document.getElementById('exp-date').value = exp.date || '';
+            document.getElementById('exp-desc').value = exp.desc || '';
+            document.getElementById('exp-value').value = exp.value || '';
+            document.getElementById('exp-category').value = exp.category || 'outros';
+            document.getElementById('exp-type').value = exp.type || 'saida';
+            document.getElementById('modal-expense-title').textContent = 'Editar Lançamento';
+            openModal('modal-expense');
+        };
+
+        // ===================== GOOGLE CALENDAR SYNC =====================
+        window.syncGoogleCalendar = async function() {
+            if (APP.syncing) return;
+            APP.syncing = true;
+            document.getElementById('sync-btn').classList.add('animate-spin-slow');
+
+            try {
+                // Se não tem token, faz login com Google para pegar token de calendar
+                if (!APP.userDoc?.calendarToken) {
+                    showToast('Autorizando acesso ao Google Calendar...', 'info');
+                    const result = await signInWithPopup(auth, googleProvider);
+                    const credential = GoogleAuthProvider.credentialFromResult(result);
+                    APP.calendarToken = credential.accessToken;
+                    APP.userDoc.calendarToken = APP.calendarToken;
+                    await updateDoc(doc(db, 'users', APP.user.uid), { calendarToken: APP.calendarToken });
+                } else {
+                    APP.calendarToken = APP.userDoc.calendarToken;
+                }
+
+                showToast('Importando eventos do Google Calendar...', 'info');
+                await importFromGoogleCalendar();
+                showToast('Agenda sincronizada com sucesso!', 'success');
+                await loadAppointments();
+                renderCurrentView();
+            } catch(e) {
+                showToast('Erro na sincronização: ' + e.message, 'error');
+            } finally {
+                APP.syncing = false;
+                document.getElementById('sync-btn').classList.remove('animate-spin-slow');
+            }
+        };
+
+        async function importFromGoogleCalendar() {
+            const token = APP.calendarToken;
+            if (!token) return;
+
+            // Busca eventos do mês atual + próximo mês
+            const now = new Date();
+            const timeMin = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+            const timeMax = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString();
+
+            const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`;
+
+            const resp = await fetch(url, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (!resp.ok) {
+                if (resp.status === 401) {
+                    APP.userDoc.calendarToken = null;
+                    await updateDoc(doc(db, 'users', APP.user.uid), { calendarToken: null });
+                    throw new Error('Token expirado, faça login novamente.');
+                }
+                throw new Error('Erro ao buscar eventos: ' + resp.status);
+            }
+
+            const data = await resp.json();
+            const events = data.items || [];
+
+            for (const event of events) {
+                const startDT = event.start?.dateTime || event.start?.date;
+                if (!startDT) continue;
+
+                const d = new Date(startDT);
+                const dateStr = d.toISOString().split('T')[0];
+                const timeStr = event.start?.dateTime
+                    ? d.toTimeString().slice(0,5)
+                    : '00:00';
+
+                // Extrai valor R$ da descrição/notas (ex: "R$ 150,00" ou "R$150")
+                const desc = event.description || '';
+                const valueMatch = desc.match(/R\$\s?([\d.,]+)/i);
+                const value = valueMatch
+                    ? parseFloat(valueMatch[1].replace('.','').replace(',','.'))
+                    : 0;
+
+                // Verifica se já existe pelo googleEventId
+                const existing = APP.appointments.find(a => a.googleEventId === event.id);
+                const apptData = {
+                    date: dateStr,
+                    time: timeStr,
+                    clientName: event.summary || 'Cliente',
+                    service: event.summary || 'Serviço',
+                    value,
+                    notes: desc,
+                    salonId: APP.userDoc.salonId,
+                    uid: APP.user.uid,
+                    status: 'agendado',
+                    googleEventId: event.id,
+                    updatedAt: Timestamp.now()
+                };
+
+                if (existing) {
+                    await updateDoc(doc(db, 'appointments', existing.id), apptData);
+                } else {
+                    apptData.createdAt = Timestamp.now();
+                    await addDoc(collection(db, 'appointments'), apptData);
+                }
+            }
+        }
+
+        async function syncToGoogleCalendar(appt) {
+            const token = APP.userDoc?.calendarToken;
+            if (!token) return;
+            try {
+                const startDT = `${appt.date}T${appt.time}:00`;
+                // estima 1h de duração
+                const end = new Date(`${appt.date}T${appt.time}:00`);
+                end.setHours(end.getHours() + 1);
+                const endDT = end.toISOString().slice(0,16) + ':00';
+
+                const event = {
+                    summary: `${appt.clientName} – ${appt.service}`,
+                    description: `R$ ${appt.value?.toFixed(2).replace('.',',')} \n${appt.notes || ''}`,
+                    start: { dateTime: startDT, timeZone: 'America/Sao_Paulo' },
+                    end: { dateTime: endDT, timeZone: 'America/Sao_Paulo' }
+                };
+
+                await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(event)
+                });
+            } catch(e) { console.error('Sync to Calendar error:', e); }
+        }
+
+        // ===================== UI RENDER =====================
+        function renderLogin() {
+            document.getElementById('app').innerHTML = `
+            <div class="app-container flex flex-col items-center justify-center min-h-screen px-8">
+                <div class="text-center mb-12 animate-fadeIn">
+                    <div class="w-24 h-24 mx-auto mb-6 rounded-3xl bg-white/10 flex items-center justify-center shadow-2xl border border-white/20">
+                        <i class="fa-solid fa-spa text-4xl text-white"></i>
+                    </div>
+                    <h1 class="font-display text-4xl text-white font-bold tracking-tight mb-2">Glam Studio</h1>
+                    <p class="text-white/50 text-sm font-light">Agenda & Financeiro Estética</p>
+                </div>
+
+                <button onclick="loginWithGoogle()"
+                    class="w-full bg-white text-gray-800 py-4 px-6 rounded-2xl font-semibold flex items-center justify-center gap-3 shadow-xl hover:shadow-2xl transition-all active:scale-95 text-sm">
+                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-5 h-5">
+                    Entrar com Google
+                </button>
+
+                <p class="text-white/30 text-xs mt-8 text-center max-w-xs">
+                    O login com Google também autoriza acesso ao seu Google Calendar para sincronização da agenda.
+                </p>
+            </div>`;
+        }
+
+        function renderApp() {
+            const u = APP.user;
+            document.getElementById('app').innerHTML = `
+            <div class="app-container">
+
+                <!-- Loading overlay -->
+                <div id="loading-overlay" class="hidden fixed inset-0 z-[999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                    <div class="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-2xl">
+                        <i class="fa-solid fa-circle-notch fa-spin text-2xl text-brand-purple"></i>
+                    </div>
+                </div>
+
+                <!-- Toast -->
+                <div id="toast" class="hidden fixed top-5 left-1/2 -translate-x-1/2 z-[998] px-5 py-3 rounded-2xl text-white text-sm font-semibold shadow-xl transition-all max-w-xs text-center"></div>
+
+                <!-- Header -->
+                <header class="px-6 pt-10 pb-6 flex items-center justify-between text-white">
+                    <div>
+                        <p class="text-white/50 text-xs font-medium uppercase tracking-widest">Olá,</p>
+                        <h1 class="font-display text-xl font-bold leading-tight">${(u.displayName||'').split(' ')[0]}</h1>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <button id="sync-btn" onclick="syncGoogleCalendar()"
+                            class="bg-white/15 hover:bg-white/25 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition border border-white/20">
+                            <i class="fa-brands fa-google text-[11px]"></i>
+                            SINCRONIZAR
+                        </button>
+                        <button onclick="logout()" class="w-10 h-10 rounded-full border-2 border-white/20 overflow-hidden hover:border-white/50 transition">
+                            <img src="${u.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Glam'}" alt="User" class="w-full h-full object-cover">
+                        </button>
+                    </div>
+                </header>
+
+                <!-- Calendar Section (only in agenda tab) -->
+                <section id="calendar-section" class="px-6 pb-6">
+                    <div class="flex items-center justify-between text-white mb-5">
+                        <h2 class="font-display text-2xl font-bold" id="monthDisplay"></h2>
+                        <div class="flex gap-4">
+                            <button onclick="prevMonth()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition">
+                                <i class="fa-solid fa-chevron-left text-sm"></i>
+                            </button>
+                            <button onclick="nextMonth()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition">
+                                <i class="fa-solid fa-chevron-right text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1 text-center text-white/40 text-[10px] uppercase font-black mb-3">
+                        <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+                    </div>
+                    <div class="grid grid-cols-7 gap-y-2 gap-x-1" id="calendarGrid"></div>
+                </section>
+
+                <!-- Content Area -->
+                <main class="content-card" id="main-content">
+                    <!-- renderizado por renderCurrentView() -->
+                </main>
+
+                <!-- Navigation -->
+                <nav class="floating-nav">
+                    <button id="nav-agenda" onclick="setTab('agenda')" class="nav-btn flex flex-col items-center text-brand-purple">
+                        <i class="fa-solid fa-calendar-days text-xl"></i>
+                        <span class="text-[9px] font-black uppercase mt-1">Agenda</span>
+                    </button>
+
+                    <button onclick="openAddModal()" class="add-button">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+
+                    <button id="nav-financeiro" onclick="setTab('financeiro')" class="nav-btn flex flex-col items-center text-gray-400 hover:text-brand-purple transition">
+                        <i class="fa-solid fa-chart-line text-xl"></i>
+                        <span class="text-[9px] font-black uppercase mt-1">Financeiro</span>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Modal: Agendamento -->
+            <div id="modal-appointment" class="modal-overlay hidden">
+                <div class="modal-box">
+                    <div class="flex items-center justify-between mb-5">
+                        <h3 class="font-display font-bold text-gray-800 text-lg" id="modal-appointment-title">Novo Agendamento</h3>
+                        <button onclick="closeModal('modal-appointment')" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">
+                            <i class="fa-solid fa-xmark text-sm"></i>
+                        </button>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label">Data</label>
+                                <input type="date" id="appt-date" class="field-input">
+                            </div>
+                            <div>
+                                <label class="field-label">Horário</label>
+                                <input type="time" id="appt-time" class="field-input">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="field-label">Cliente</label>
+                            <input type="text" id="appt-client" list="client-list" placeholder="Nome do cliente" class="field-input">
+                            <datalist id="client-list"></datalist>
+                        </div>
+                        <div>
+                            <label class="field-label">Serviço</label>
+                            <input type="text" id="appt-service" list="service-list" placeholder="Tipo de serviço" class="field-input">
+                            <datalist id="service-list"></datalist>
+                        </div>
+                        <div>
+                            <label class="field-label">Valor (R$)</label>
+                            <input type="number" id="appt-value" placeholder="0,00" step="0.01" class="field-input">
+                        </div>
+                        <div>
+                            <label class="field-label">Observações</label>
+                            <textarea id="appt-notes" rows="2" placeholder="Notas adicionais..." class="field-input resize-none"></textarea>
+                        </div>
+                    </div>
+                    <button onclick="saveAppointment()" class="btn-primary mt-5 w-full">
+                        <i class="fa-solid fa-check mr-2"></i> Salvar Agendamento
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal: Despesa/Receita -->
+            <div id="modal-expense" class="modal-overlay hidden">
+                <div class="modal-box">
+                    <div class="flex items-center justify-between mb-5">
+                        <h3 class="font-display font-bold text-gray-800 text-lg" id="modal-expense-title">Novo Lançamento</h3>
+                        <button onclick="closeModal('modal-expense')" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">
+                            <i class="fa-solid fa-xmark text-sm"></i>
+                        </button>
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="field-label">Tipo</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="setExpType('entrada')" id="btn-entrada"
+                                    class="py-2 rounded-xl text-sm font-bold border-2 border-green-200 text-green-600 bg-green-50 transition">
+                                    <i class="fa-solid fa-arrow-up mr-1"></i> Entrada
+                                </button>
+                                <button onclick="setExpType('saida')" id="btn-saida"
+                                    class="py-2 rounded-xl text-sm font-bold border-2 border-transparent text-gray-400 bg-gray-100 transition">
+                                    <i class="fa-solid fa-arrow-down mr-1"></i> Saída
+                                </button>
+                            </div>
+                            <input type="hidden" id="exp-type" value="entrada">
+                        </div>
+                        <div>
+                            <label class="field-label">Data</label>
+                            <input type="date" id="exp-date" class="field-input">
+                        </div>
+                        <div>
+                            <label class="field-label">Descrição</label>
+                            <input type="text" id="exp-desc" placeholder="Ex: Produto, Aluguel..." class="field-input">
+                        </div>
+                        <div>
+                            <label class="field-label">Valor (R$)</label>
+                            <input type="number" id="exp-value" placeholder="0,00" step="0.01" class="field-input">
+                        </div>
+                        <div>
+                            <label class="field-label">Categoria</label>
+                            <select id="exp-category" class="field-input">
+                                <option value="servico">Serviço Prestado</option>
+                                <option value="produto">Venda de Produto</option>
+                                <option value="material">Material / Insumos</option>
+                                <option value="aluguel">Aluguel</option>
+                                <option value="marketing">Marketing</option>
+                                <option value="outros">Outros</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="saveExpense()" class="btn-primary mt-5 w-full">
+                        <i class="fa-solid fa-check mr-2"></i> Salvar Lançamento
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal: Escolher tipo de novo -->
+            <div id="modal-add-type" class="modal-overlay hidden">
+                <div class="modal-box">
+                    <h3 class="font-display font-bold text-gray-800 text-lg mb-5 text-center">O que deseja adicionar?</h3>
+                    <div class="space-y-3">
+                        <button onclick="openModal('modal-appointment'); closeModal('modal-add-type')" class="w-full py-4 rounded-2xl bg-brand-purple text-white font-bold flex items-center gap-3 px-5 hover:opacity-90 transition">
+                            <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                                <i class="fa-solid fa-calendar-plus"></i>
+                            </div>
+                            Novo Agendamento
+                        </button>
+                        <button onclick="openModal('modal-expense'); closeModal('modal-add-type')" class="w-full py-4 rounded-2xl bg-accent-coral text-white font-bold flex items-center gap-3 px-5 hover:opacity-90 transition">
+                            <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                                <i class="fa-solid fa-money-bill-wave"></i>
+                            </div>
+                            Novo Lançamento Financeiro
+                        </button>
+                        <button onclick="closeModal('modal-add-type')" class="w-full py-3 rounded-2xl bg-gray-100 text-gray-500 font-semibold text-sm hover:bg-gray-200 transition">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+
+            renderCalendar();
+        }
+
+        window.setTab = function(tab) {
+            APP.activeTab = tab;
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('text-brand-purple'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.add('text-gray-400'));
+            const calSection = document.getElementById('calendar-section');
+            if (tab === 'agenda') {
+                document.getElementById('nav-agenda').classList.add('text-brand-purple');
+                document.getElementById('nav-agenda').classList.remove('text-gray-400');
+                if (calSection) calSection.style.display = '';
+            } else {
+                document.getElementById('nav-financeiro').classList.add('text-brand-purple');
+                document.getElementById('nav-financeiro').classList.remove('text-gray-400');
+                if (calSection) calSection.style.display = 'none';
+            }
+            renderCurrentView();
+        };
+
+        function renderCurrentView() {
+            if (APP.activeTab === 'agenda') renderAgendaView();
+            else renderFinanceiroView();
+        }
+
+        // ===================== AGENDA VIEW =====================
+        function renderAgendaView() {
+            const sel = APP.selectedDate;
+            const dateStr = sel.toISOString().split('T')[0];
+            const list = APP.appointments.filter(a => a.date === dateStr)
+                .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+            const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            const weekDays = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+            const dayLabel = `${weekDays[sel.getDay()]}, ${sel.getDate()} de ${months[sel.getMonth()]}`;
+
+            const totalDay = list.reduce((s, a) => s + (a.value || 0), 0);
+
+            const html = `
+            <div class="flex items-center justify-between mb-5">
+                <div>
+                    <h2 class="text-xl font-extrabold text-gray-800 font-display">Agenda</h2>
+                    <p class="text-xs text-gray-400 font-medium">${dayLabel}</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-gray-400 uppercase font-bold">Total do dia</p>
+                    <p class="text-base font-extrabold text-green-600">R$ ${totalDay.toFixed(2).replace('.',',')}</p>
+                </div>
+            </div>
+
+            ${list.length === 0 ? `
+            <div class="flex flex-col items-center justify-center py-12 text-gray-300">
+                <i class="fa-regular fa-calendar-xmark text-5xl mb-4"></i>
+                <p class="text-sm font-semibold text-gray-400">Nenhum agendamento</p>
+                <p class="text-xs text-gray-300 mt-1">Toque em + para adicionar</p>
+            </div>` : ''}
+
+            <div class="space-y-4" id="appointmentList">
+                ${list.map(a => {
+                    const statusColors = { agendado: 'bg-purple-400', concluido: 'bg-green-500', cancelado: 'bg-red-400' };
+                    const dot = statusColors[a.status] || 'bg-gray-300';
+                    const fromGoogle = a.googleEventId ? '<span class="text-[9px] bg-blue-50 text-blue-500 rounded-full px-2 py-0.5 font-bold ml-1"><i class="fa-brands fa-google text-[8px]"></i> SYNC</span>' : '';
+                    return `
+                    <div class="relative pl-6 border-l-2 border-gray-100 pb-2 animate-slideIn">
+                        <div class="timeline-dot ${dot}"></div>
+                        <div class="bg-gray-50 p-4 rounded-3xl border border-gray-100 group">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                        <span class="text-sm font-black text-brand-purple">${a.time || '--:--'}</span>
+                                        ${a.value ? `<span class="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">R$ ${a.value.toFixed(2).replace('.',',')}</span>` : ''}
+                                        ${fromGoogle}
+                                    </div>
+                                    <p class="text-sm font-semibold text-gray-700 truncate">${a.clientName} – ${a.service}</p>
+                                    ${a.notes ? `<p class="text-xs text-gray-400 mt-1 line-clamp-1">${a.notes}</p>` : ''}
+                                </div>
+                                <div class="flex gap-1 ml-2 flex-shrink-0">
+                                    ${a.status !== 'concluido' ? `<button onclick="markDone('${a.id}')" class="p-2 text-green-500 bg-green-50 rounded-xl hover:bg-green-100 transition"><i class="fa-solid fa-check text-xs"></i></button>` : '<span class="p-2 text-xs text-green-500 font-bold">✓</span>'}
+                                    <button onclick="editAppointment('${a.id}')" class="p-2 text-blue-500 bg-blue-50 rounded-xl hover:bg-blue-100 transition"><i class="fa-solid fa-pen text-xs"></i></button>
+                                    <button onclick="deleteAppointment('${a.id}')" class="p-2 text-red-500 bg-red-50 rounded-xl hover:bg-red-100 transition"><i class="fa-solid fa-trash text-xs"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>`;
+
+            document.getElementById('main-content').innerHTML = html;
+        }
+
+        // ===================== FINANCEIRO VIEW =====================
+        function renderFinanceiroView() {
+            const now = new Date();
+            const monthStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+            const monthExpenses = APP.expenses.filter(e => e.date?.startsWith(monthStr));
+            const monthAppointments = APP.appointments.filter(a => a.date?.startsWith(monthStr) && a.status === 'concluido');
+
+            const receitas = monthExpenses.filter(e => e.type === 'entrada').reduce((s,e) => s + (e.value||0), 0);
+            const despesas = monthExpenses.filter(e => e.type === 'saida').reduce((s,e) => s + (e.value||0), 0);
+            const agendaRevenue = monthAppointments.reduce((s,a) => s + (a.value||0), 0);
+            const totalReceita = receitas + agendaRevenue;
+            const saldo = totalReceita - despesas;
+
+            // Últimos 30 lançamentos
+            const allTrans = [
+                ...APP.expenses.map(e => ({...e, _type: 'expense'})),
+                ...APP.appointments.filter(a => a.status === 'concluido' && a.value > 0).map(a => ({...a, _type: 'appt', type:'entrada', desc: `${a.clientName} – ${a.service}`}))
+            ].sort((a,b) => (b.date||'').localeCompare(a.date||'')).slice(0, 30);
+
+            const catColors = { servico:'bg-purple-100 text-purple-600', produto:'bg-blue-100 text-blue-600', material:'bg-yellow-100 text-yellow-700', aluguel:'bg-red-100 text-red-600', marketing:'bg-pink-100 text-pink-600', outros:'bg-gray-100 text-gray-600' };
+
+            document.getElementById('main-content').innerHTML = `
+            <div>
+                <div class="flex items-center justify-between mb-5">
+                    <h2 class="text-xl font-extrabold text-gray-800 font-display">Financeiro</h2>
+                    <span class="text-xs text-gray-400 font-bold uppercase tracking-wider">${new Date().toLocaleString('pt-BR',{month:'long', year:'numeric'})}</span>
+                </div>
+
+                <!-- Cards resumo -->
+                <div class="grid grid-cols-3 gap-3 mb-6">
+                    <div class="bg-green-50 rounded-2xl p-3 text-center border border-green-100">
+                        <p class="text-[9px] text-green-500 font-black uppercase tracking-wide mb-1">Receita</p>
+                        <p class="text-sm font-extrabold text-green-700">R$${totalReceita.toFixed(0)}</p>
+                    </div>
+                    <div class="bg-red-50 rounded-2xl p-3 text-center border border-red-100">
+                        <p class="text-[9px] text-red-500 font-black uppercase tracking-wide mb-1">Despesas</p>
+                        <p class="text-sm font-extrabold text-red-700">R$${despesas.toFixed(0)}</p>
+                    </div>
+                    <div class="${saldo >= 0 ? 'bg-blue-50 border-blue-100' : 'bg-orange-50 border-orange-100'} rounded-2xl p-3 text-center border">
+                        <p class="text-[9px] ${saldo >= 0 ? 'text-blue-500' : 'text-orange-500'} font-black uppercase tracking-wide mb-1">Saldo</p>
+                        <p class="text-sm font-extrabold ${saldo >= 0 ? 'text-blue-700' : 'text-orange-700'}">R$${saldo.toFixed(0)}</p>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="bg-brand-purple rounded-2xl p-4 mb-5 text-white">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs font-bold opacity-70">Agendamentos concluídos</span>
+                        <span class="text-xs font-black">${monthAppointments.length} este mês</span>
+                    </div>
+                    <div class="w-full bg-white/20 rounded-full h-2">
+                        <div class="bg-accent-coral h-2 rounded-full transition-all" style="width:${Math.min(100, monthAppointments.length * 5)}%"></div>
+                    </div>
+                    <div class="flex justify-between mt-2">
+                        <span class="text-xs opacity-60">Meta: 20</span>
+                        <span class="text-xs font-bold text-accent-coral">R$ ${agendaRevenue.toFixed(2).replace('.',',')}</span>
+                    </div>
+                </div>
+
+                <!-- Transações recentes -->
+                <h3 class="text-sm font-extrabold text-gray-700 mb-3 uppercase tracking-wide">Lançamentos Recentes</h3>
+                ${allTrans.length === 0 ? '<p class="text-sm text-gray-300 text-center py-6">Nenhum lançamento ainda</p>' : ''}
+                <div class="space-y-2">
+                ${allTrans.map(t => `
+                    <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 group">
+                        <div class="w-9 h-9 rounded-xl ${t.type === 'entrada' ? 'bg-green-50' : 'bg-red-50'} flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid ${t.type === 'entrada' ? 'fa-arrow-up text-green-500' : 'fa-arrow-down text-red-500'} text-sm"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-gray-700 truncate">${t.desc || t.clientName || '—'}</p>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-gray-400">${t.date || ''}</span>
+                                ${t.category ? `<span class="text-[9px] px-2 py-0.5 rounded-full font-bold ${catColors[t.category] || 'bg-gray-100 text-gray-500'}">${t.category}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="text-right flex-shrink-0">
+                            <p class="text-sm font-extrabold ${t.type === 'entrada' ? 'text-green-600' : 'text-red-500'}">
+                                ${t.type === 'entrada' ? '+' : '-'}R$ ${(t.value||0).toFixed(2).replace('.',',')}
+                            </p>
+                            ${t._type === 'expense' ? `
+                            <div class="flex gap-1 justify-end mt-1 opacity-0 group-hover:opacity-100 transition">
+                                <button onclick="editExpense('${t.id}')" class="p-1 text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                                <button onclick="deleteExpense('${t.id}')" class="p-1 text-red-400 hover:text-red-600"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                            </div>` : ''}
+                        </div>
+                    </div>`).join('')}
+                </div>
+            </div>`;
+        }
+
+        // ===================== CALENDAR =====================
+        function renderCalendar() {
+            const d = APP.currentDate;
+            const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            document.getElementById('monthDisplay').textContent = `${months[d.getMonth()]} ${d.getFullYear()}`;
+
+            const grid = document.getElementById('calendarGrid');
+            if (!grid) return;
+            grid.innerHTML = '';
+
+            const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
+            const daysInMonth = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+            const prevDays = new Date(d.getFullYear(), d.getMonth(), 0).getDate();
+
+            // prev month filler
+            for (let i = firstDay - 1; i >= 0; i--) {
+                const el = document.createElement('div');
+                el.className = 'text-center py-1.5 text-sm text-white/20 font-medium';
+                el.textContent = prevDays - i;
+                grid.appendChild(el);
+            }
+
+            const today = new Date();
+            const sel = APP.selectedDate;
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                const hasAppt = APP.appointments.some(a => a.date === dateStr);
+                const isToday = today.getDate() === i && today.getMonth() === d.getMonth() && today.getFullYear() === d.getFullYear();
+                const isSelected = sel.getDate() === i && sel.getMonth() === d.getMonth() && sel.getFullYear() === d.getFullYear();
+
+                const el = document.createElement('div');
+                el.className = `calendar-day relative text-center py-1.5 text-sm rounded-full cursor-pointer transition-all select-none
+                    ${isSelected ? 'bg-white text-brand-purple font-black shadow-lg scale-110' :
+                      isToday ? 'bg-white/20 text-white font-bold' : 'text-white hover:bg-white/10'}`;
+                el.textContent = i;
+
+                if (hasAppt && !isSelected) {
+                    const dot = document.createElement('div');
+                    dot.className = 'absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent-coral';
+                    el.appendChild(dot);
+                }
+
+                el.onclick = () => selectDay(i);
+                grid.appendChild(el);
+            }
+        }
+
+        window.selectDay = function(day) {
+            const d = APP.currentDate;
+            APP.selectedDate = new Date(d.getFullYear(), d.getMonth(), day);
+            renderCalendar();
+            renderAgendaView();
+        };
+
+        window.prevMonth = function() {
+            APP.currentDate = new Date(APP.currentDate.getFullYear(), APP.currentDate.getMonth()-1, 1);
+            renderCalendar();
+        };
+
+        window.nextMonth = function() {
+            APP.currentDate = new Date(APP.currentDate.getFullYear(), APP.currentDate.getMonth()+1, 1);
+            renderCalendar();
+        };
+
+        // ===================== HELPERS =====================
+        function renderServiceOptions() {
+            const dl = document.getElementById('service-list');
+            if (!dl) return;
+            dl.innerHTML = APP.services.map(s => `<option value="${s.name}">`).join('');
+        }
+
+        function renderClientOptions() {
+            const dl = document.getElementById('client-list');
+            if (!dl) return;
+            dl.innerHTML = APP.clients.map(c => `<option value="${c.name}">`).join('');
+        }
+
+        window.openModal = function(id) {
+            document.getElementById(id)?.classList.remove('hidden');
+            // set default date
+            if (id === 'modal-appointment') {
+                document.getElementById('modal-appointment-title').textContent = 'Novo Agendamento';
+                APP.editingAppointment = null;
+                const d = APP.selectedDate;
+                document.getElementById('appt-date').value = d.toISOString().split('T')[0];
+                document.getElementById('appt-time').value = '';
+                document.getElementById('appt-client').value = '';
+                document.getElementById('appt-service').value = '';
+                document.getElementById('appt-value').value = '';
+                document.getElementById('appt-notes').value = '';
+            }
+            if (id === 'modal-expense') {
+                document.getElementById('modal-expense-title').textContent = 'Novo Lançamento';
+                APP.editingExpense = null;
+                document.getElementById('exp-date').value = new Date().toISOString().split('T')[0];
+                document.getElementById('exp-desc').value = '';
+                document.getElementById('exp-value').value = '';
+                setExpType('entrada');
+            }
+        };
+
+        window.closeModal = function(id) {
+            document.getElementById(id)?.classList.add('hidden');
+        };
+
+        window.openAddModal = function() {
+            openModal('modal-add-type');
+        };
+
+        window.setExpType = function(type) {
+            document.getElementById('exp-type').value = type;
+            const btnE = document.getElementById('btn-entrada');
+            const btnS = document.getElementById('btn-saida');
+            if (type === 'entrada') {
+                btnE.className = 'py-2 rounded-xl text-sm font-bold border-2 border-green-400 text-green-700 bg-green-50 transition';
+                btnS.className = 'py-2 rounded-xl text-sm font-bold border-2 border-transparent text-gray-400 bg-gray-100 transition';
+            } else {
+                btnS.className = 'py-2 rounded-xl text-sm font-bold border-2 border-red-400 text-red-700 bg-red-50 transition';
+                btnE.className = 'py-2 rounded-xl text-sm font-bold border-2 border-transparent text-gray-400 bg-gray-100 transition';
+            }
+        };
+
+        function showLoading(v) {
+            const el = document.getElementById('loading-overlay');
+            if (el) el.classList.toggle('hidden', !v);
+        }
+
+        let toastTimer;
+        function showToast(msg, type='info') {
+            const el = document.getElementById('toast');
+            if (!el) return;
+            const colors = { success:'bg-green-500', error:'bg-red-500', warning:'bg-yellow-500', info:'bg-blue-500' };
+            el.className = `fixed top-5 left-1/2 -translate-x-1/2 z-[998] px-5 py-3 rounded-2xl text-white text-sm font-semibold shadow-xl max-w-xs text-center ${colors[type]}`;
+            el.textContent = msg;
+            el.classList.remove('hidden');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.add('hidden'), 3000);
+        }
+    </script>
+
+    <style>
+        :root {
+            --brand-purple: #4A3957;
+            --brand-light: #6B5680;
+            --accent-coral: #FF7E5F;
+            --accent-pink: #FF6B9D;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: #d1d5db;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        #app { width: 100%; display: flex; justify-content: center; }
+
+        .font-display { font-family: 'Playfair Display', serif; }
+
+        .app-container {
+            width: 100%;
+            max-width: 450px;
+            background: linear-gradient(160deg, #5C4470 0%, #3D2D4D 100%);
+            min-height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+        }
+
+        .content-card {
+            background: #fff;
+            border-top-left-radius: 36px;
+            border-top-right-radius: 36px;
+            flex: 1;
+            padding: 28px 22px 110px;
+            overflow-y: auto;
+        }
+
+        .floating-nav {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(85%, 380px);
+            height: 64px;
+            background: white;
+            border-radius: 999px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+            z-index: 100;
+        }
+
+        .add-button {
+            position: relative;
+            top: -22px;
+            width: 62px;
+            height: 62px;
+            background: linear-gradient(135deg, #FF7E5F, #FF6B9D);
+            border-radius: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 26px;
+            box-shadow: 0 12px 24px rgba(255,126,95,0.45);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .add-button:active { transform: scale(0.92) translateY(-22px); box-shadow: 0 6px 12px rgba(255,126,95,0.35); }
+
+        .timeline-dot {
+            position: absolute;
+            left: -7px;
+            top: 18px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+
+        .calendar-day { transition: all 0.15s ease; }
+        .calendar-day.active { background: white; color: var(--brand-purple); font-weight: 900; }
+
+        .text-brand-purple { color: var(--brand-purple); }
+        .bg-brand-purple { background-color: var(--brand-purple); }
+        .text-accent-coral { color: var(--accent-coral); }
+        .bg-accent-coral { background-color: var(--accent-coral); }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 500;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 0 0 env(safe-area-inset-bottom);
+        }
+        .modal-overlay.hidden { display: none; }
+
+        .modal-box {
+            background: white;
+            border-radius: 28px 28px 0 0;
+            padding: 28px 24px 40px;
+            width: 100%;
+            max-width: 450px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .field-label { display: block; font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
+
+        .field-input {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 14px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            color: #1f2937;
+            background: #f9fafb;
+            outline: none;
+            transition: border-color 0.15s;
+            box-sizing: border-box;
+        }
+        .field-input:focus { border-color: var(--brand-purple); background: white; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--brand-purple), var(--brand-light));
+            color: white;
+            padding: 14px;
+            border-radius: 16px;
+            font-weight: 700;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        .btn-primary:active { opacity: 0.85; transform: scale(0.98); }
+
+        @keyframes slideUp {
+            from { transform: translateY(40px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .animate-fadeIn { animation: fadeIn 0.5s ease forwards; }
+        .animate-slideIn { animation: slideIn 0.3s ease forwards; }
+
+        @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-spin-slow { animation: spin-slow 1s linear infinite; }
+
+        ::-webkit-scrollbar { width: 0; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Tela de carregamento inicial -->
+        <div class="app-container flex items-center justify-center">
+            <div class="text-center text-white animate-fadeIn">
+                <i class="fa-solid fa-spa text-5xl mb-4 opacity-60"></i>
+                <p class="text-sm font-medium opacity-50">Carregando...</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
