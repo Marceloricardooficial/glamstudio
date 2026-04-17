@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Glam Studio - Agenda & Financeiro</title>
+    <!-- Tailwind CSS + Font Awesome + Google Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <!-- Google Identity Services (OAuth para Calendar) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Google API Client para Calendar -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #e5e7eb; margin: 0; display: flex; justify-content: center; }
+        .app-container {
+            width: 100%; max-width: 450px; background-color: #4A3957;
+            min-height: 100vh; position: relative; display: flex; flex-direction: column;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+        .calendar-day.active {
+            background-color: white; color: #4A3957; font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .content-card {
+            background-color: white; border-top-left-radius: 40px; border-top-right-radius: 40px;
+            flex: 1; padding: 32px 24px 100px 24px;
+        }
+        .floating-nav {
+            position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+            width: 85%; height: 64px; background-color: white; border-radius: 999px;
+            display: flex; justify-content: space-around; align-items: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 50;
+        }
+        .add-button {
+            position: relative; top: -25px; width: 64px; height: 64px;
+            background-color: #FF7E5F; border-radius: 20px; display: flex;
+            justify-content: center; align-items: center; color: white; font-size: 28px;
+            box-shadow: 0 10px 20px rgba(255,126,95,0.4); transition: transform 0.2s;
+            cursor: pointer;
+        }
+        .add-button:active { transform: scale(0.95); }
+        .timeline-dot {
+            position: absolute; left: -7px; top: 4px; width: 12px; height: 12px;
+            border-radius: 50%; border: 2px solid white;
+        }
+        ::-webkit-scrollbar { width: 0px; }
+        .modal-overlay {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+        }
+        .transition-all { transition: all 0.2s ease; }
+        .btn-primary { background: #FF7E5F; color: white; padding: 10px 20px; border-radius: 40px; font-weight: 600; }
+        .btn-secondary { background: #f3f4f6; color: #4B5563; padding: 8px 16px; border-radius: 40px; }
+    </style>
+</head>
+<body>
+
+<div class="app-container" id="appRoot">
+    <!-- HEADER -->
+    <header class="px-6 pt-10 pb-6 flex items-center justify-between text-white">
+        <button id="menuBtn" class="w-10 h-10 flex items-center justify-center hover:bg-white/10 rounded-full">
+            <i class="fa-solid fa-bars text-xl"></i>
+        </button>
+        <div class="flex items-center gap-3">
+            <button id="syncCalendarBtn" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2">
+                <i class="fa-solid fa-rotate text-[10px]"></i> SINCRONIZAR
+            </button>
+            <div id="userAvatar" class="w-10 h-10 rounded-full border-2 border-white/30 overflow-hidden bg-gray-300 cursor-pointer">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=user" alt="User" class="w-full h-full object-cover">
+            </div>
+        </div>
+    </header>
+
+    <!-- CALENDAR SECTION -->
+    <section class="px-6 pb-8">
+        <div class="flex items-center justify-between text-white mb-6">
+            <h1 class="text-2xl font-bold tracking-tight" id="monthDisplay">Carregando...</h1>
+            <div class="flex gap-4">
+                <i id="prevMonth" class="fa-solid fa-chevron-left cursor-pointer opacity-60 hover:opacity-100"></i>
+                <i id="nextMonth" class="fa-solid fa-chevron-right cursor-pointer opacity-60 hover:opacity-100"></i>
+            </div>
+        </div>
+        <div class="grid grid-cols-7 gap-2 text-center text-white/40 text-[10px] uppercase font-black mb-4">
+            <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+        </div>
+        <div class="grid grid-cols-7 gap-y-3 gap-x-2" id="calendarGrid"></div>
+    </section>
+
+    <!-- MAIN CONTENT (AGENDA / FINANCEIRO) -->
+    <main class="content-card" id="mainContent">
+        <!-- Dinâmico: Agenda list ou Financeiro dashboard -->
+        <div id="dynamicView"></div>
+    </main>
+
+    <!-- BOTTOM NAV -->
+    <nav class="floating-nav">
+        <button id="navAgenda" class="flex flex-col items-center text-purple-600">
+            <i class="fa-solid fa-calendar-days text-xl"></i>
+            <span class="text-[9px] font-black uppercase mt-1">Agenda</span>
+        </button>
+        <div class="add-button" id="fabAdd">
+            <i class="fa-solid fa-plus"></i>
+        </div>
+        <button id="navFinanceiro" class="flex flex-col items-center text-gray-400 hover:text-purple-600 transition">
+            <i class="fa-solid fa-chart-line text-xl"></i>
+            <span class="text-[9px] font-black uppercase mt-1">Financeiro</span>
+        </button>
+    </nav>
+</div>
+
+<script>
+    // ----------------------------- CONFIG FIREBASE -----------------------------
+    const firebaseConfig = {
+        apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+        authDomain: "glam-studio-8b65c.firebaseapp.com",
+        projectId: "glam-studio-8b65c",
+        storageBucket: "glam-studio-8b65c.firebasestorage.app",
+        messagingSenderId: "154294556895",
+        appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Google Calendar OAuth (clientId fornecido)
+    const GOOGLE_CLIENT_ID = "1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com";
+    const SCOPES = "https://www.googleapis.com/auth/calendar";
+    let tokenClient; // para GIS
+    let gapiInited = false, gisInited = false;
+    let currentAccessToken = null;
+
+    // Estado global
+    let currentUser = null;
+    let currentSalonId = null;
+    let currentUserDoc = null;
+    let currentDate = new Date(); // mês atual
+    let selectedDate = new Date(); // dia selecionado
+    let activeTab = "agenda"; // agenda ou financeiro
+    let appointmentsList = [];
+    let expensesList = [];
+    let servicesList = [];
+    let clientsList = [];
+
+    // Helper: formata data YYYY-MM-DD
+    function formatDate(date) { return date.toISOString().split('T')[0]; }
+    function formatTime(date) { return date.toTimeString().slice(0,5); }
+
+    // ----------------------------- AUTENTICAÇÃO E USUÁRIO -----------------------------
+    async function initUser(user) {
+        currentUser = user;
+        const userRef = db.collection("users").doc(user.uid);
+        const doc = await userRef.get();
+        if (!doc.exists) {
+            // criar usuário admin com salonId padrão
+            await userRef.set({
+                email: user.email,
+                role: "admin",
+                salonId: "salon_principal",
+                name: user.displayName || "Profissional",
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            currentSalonId = "salon_principal";
+        } else {
+            currentSalonId = doc.data().salonId;
+            currentUserDoc = doc.data();
+        }
+        // carregar dados principais
+        await loadServicesAndClients();
+        renderCalendar();
+        if (activeTab === "agenda") loadAppointmentsForDate(selectedDate);
+        else loadFinanceiroView();
+        // Atualizar avatar
+        document.querySelector("#userAvatar img").src = user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`;
+    }
+
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            await initUser(user);
+            // Inicializar Google Calendar API
+            await initGoogleCalendarApi();
+        } else {
+            // Login com Google Firebase
+            const provider = new firebase.auth.GoogleAuthProvider();
+            provider.addScope('email');
+            try {
+                await auth.signInWithPopup(provider);
+            } catch(e) { alert("Erro login: "+e.message); }
+        }
+    });
+
+    // ----------------------------- GOOGLE CALENDAR API (OAuth2 + Sincronia) -----------------------------
+    async function initGoogleCalendarApi() {
+        await new Promise((resolve) => gapi.load('client', resolve));
+        await gapi.client.init({});
+        gapiInited = true;
+        // Inicializar Token Client (GIS)
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: SCOPES,
+            callback: async (tokenResponse) => {
+                currentAccessToken = tokenResponse.access_token;
+                // Salvar token no Firestore (user)
+                if (currentUser) {
+                    await db.collection("users").doc(currentUser.uid).set({ googleCalendarToken: currentAccessToken, googleRefreshToken: tokenResponse.refresh_token || "" }, { merge: true });
+                }
+                alert("Google Calendar conectado! Agora use SINCRONIZAR.");
+            },
+        });
+        gisInited = true;
+        // Recuperar token salvo
+        if (currentUser) {
+            const userSnap = await db.collection("users").doc(currentUser.uid).get();
+            if (userSnap.exists && userSnap.data().googleCalendarToken) {
+                currentAccessToken = userSnap.data().googleCalendarToken;
+            }
+        }
+    }
+
+    document.getElementById("syncCalendarBtn").onclick = async () => {
+        if (!currentUser) return;
+        if (!currentAccessToken) {
+            // solicitar autorização
+            tokenClient.requestAccessToken();
+            return;
+        }
+        // Sincronizar: importar eventos do Google Calendar dos últimos 60 dias + próximos 90 dias
+        try {
+            const now = new Date();
+            const timeMin = new Date(now.getFullYear(), now.getMonth()-2, 1).toISOString();
+            const timeMax = new Date(now.getFullYear(), now.getMonth()+3, 0).toISOString();
+            const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`, {
+                headers: { Authorization: `Bearer ${currentAccessToken}` }
+            });
+            const data = await response.json();
+            if (data.items) {
+                for (const event of data.items) {
+                    const start = event.start.dateTime || event.start.date;
+                    let eventDate = new Date(start);
+                    let title = event.summary || "";
+                    let desc = event.description || "";
+                    // Extrair valor R$ (ex: "R$ 150,00" ou "Valor: R$ 120")
+                    let priceMatch = (desc + " " + title).match(/R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+(?:,\d{2})?)/i);
+                    let price = priceMatch ? parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.')) : 0;
+                    let clientName = title.split('-')[0]?.trim() || "Cliente Google";
+                    let serviceName = title.split('-')[1]?.trim() || "Serviço";
+                    // Verificar se já existe no firestore por googleEventId
+                    const existing = await db.collection("appointments").where("googleEventId", "==", event.id).get();
+                    if (existing.empty) {
+                        await db.collection("appointments").add({
+                            title: clientName + " - " + serviceName,
+                            clientName: clientName,
+                            serviceName: serviceName,
+                            dateTime: firebase.firestore.Timestamp.fromDate(eventDate),
+                            price: price,
+                            status: "agendado",
+                            googleEventId: event.id,
+                            salonId: currentSalonId,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                    } else {
+                        // atualizar
+                        const docRef = existing.docs[0].ref;
+                        await docRef.update({ price, clientName, serviceName, dateTime: firebase.firestore.Timestamp.fromDate(eventDate) });
+                    }
+                }
+                alert(`Sincronizado: ${data.items.length} eventos importados/atualizados.`);
+                loadAppointmentsForDate(selectedDate);
+            } else {
+                alert("Nenhum evento encontrado ou erro.");
+            }
+        } catch(e) { console.error(e); alert("Erro na sincronização: "+e.message); }
+    };
+
+    // criar evento no Google Calendar ao adicionar appointment
+    async function createGoogleEvent(appointmentData, appointmentId) {
+        if (!currentAccessToken) return null;
+        const startDateTime = appointmentData.dateTime.toDate();
+        const endDateTime = new Date(startDateTime.getTime() + 60*60*1000); // 1h duração
+        const event = {
+            summary: `${appointmentData.clientName} - ${appointmentData.serviceName}`,
+            description: `Valor: R$ ${appointmentData.price.toFixed(2)} | ID App: ${appointmentId}`,
+            start: { dateTime: startDateTime.toISOString(), timeZone: "America/Sao_Paulo" },
+            end: { dateTime: endDateTime.toISOString(), timeZone: "America/Sao_Paulo" },
+        };
+        const response = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${currentAccessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify(event)
+        });
+        const data = await response.json();
+        if (data.id) return data.id;
+        return null;
+    }
+
+    // ----------------------------- CRUD APPOINTMENTS -----------------------------
+    async function loadAppointmentsForDate(date) {
+        const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const end = new Date(date.getFullYear(), date.getMonth(), date.getDate()+1);
+        const snap = await db.collection("appointments")
+            .where("salonId", "==", currentSalonId)
+            .where("dateTime", ">=", firebase.firestore.Timestamp.fromDate(start))
+            .where("dateTime", "<", firebase.firestore.Timestamp.fromDate(end))
+            .orderBy("dateTime", "asc")
+            .get();
+        appointmentsList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderAgendaView();
+    }
+
+    async function saveAppointment(app, isEdit = false) {
+        let googleEventId = app.googleEventId;
+        if (!isEdit && currentAccessToken) {
+            const newId = await createGoogleEvent(app, "temp");
+            if (newId) googleEventId = newId;
+        }
+        const data = { ...app, salonId: currentSalonId, googleEventId };
+        if (isEdit) {
+            await db.collection("appointments").doc(app.id).update(data);
+            if (currentAccessToken && app.googleEventId) {
+                // atualizar no google calendar (opcional)
+            }
+        } else {
+            const docRef = await db.collection("appointments").add(data);
+            if (googleEventId && !app.googleEventId) await db.collection("appointments").doc(docRef.id).update({ googleEventId });
+        }
+        loadAppointmentsForDate(selectedDate);
+    }
+
+    async function deleteAppointment(id, googleEventId) {
+        if (confirm("Excluir agendamento?")) {
+            if (currentAccessToken && googleEventId) {
+                await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`, {
+                    method: "DELETE",
+                    headers: { Authorization: `Bearer ${currentAccessToken}` }
+                });
+            }
+            await db.collection("appointments").doc(id).delete();
+            loadAppointmentsForDate(selectedDate);
+        }
+    }
+
+    // ----------------------------- FINANCEIRO: DESPESAS E RECEITAS -----------------------------
+    async function loadExpenses() {
+        const snap = await db.collection("expenses").where("salonId", "==", currentSalonId).orderBy("date", "desc").get();
+        expensesList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+    async function addExpense(description, amount, date) {
+        await db.collection("expenses").add({ description, amount: parseFloat(amount), date: firebase.firestore.Timestamp.fromDate(new Date(date)), salonId: currentSalonId });
+        loadFinanceiroView();
+    }
+    async function deleteExpense(id) { await db.collection("expenses").doc(id).delete(); loadFinanceiroView(); }
+
+    async function getTotalRevenue(month, year) {
+        const start = new Date(year, month, 1);
+        const end = new Date(year, month+1, 1);
+        const snap = await db.collection("appointments")
+            .where("salonId", "==", currentSalonId)
+            .where("dateTime", ">=", firebase.firestore.Timestamp.fromDate(start))
+            .where("dateTime", "<", firebase.firestore.Timestamp.fromDate(end))
+            .get();
+        let total = 0;
+        snap.forEach(d => total += d.data().price || 0);
+        return total;
+    }
+
+    // ----------------------------- SERVIÇOS E CLIENTES (auxiliar) -----------------------------
+    async function loadServicesAndClients() {
+        const servicesSnap = await db.collection("services").where("salonId", "==", currentSalonId).get();
+        servicesList = servicesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const clientsSnap = await db.collection("clients").where("salonId", "==", currentSalonId).get();
+        clientsList = clientsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+
+    // ----------------------------- RENDERIZAÇÃO AGENDA (lista) -----------------------------
+    function renderAgendaView() {
+        const container = document.getElementById("dynamicView");
+        if (!container) return;
+        if (appointmentsList.length === 0) {
+            container.innerHTML = `<div class="text-center py-12 text-gray-400"><i class="fa-regular fa-calendar-xmark text-4xl mb-3"></i><p>Nenhum agendamento para este dia</p><button id="quickAddBtn" class="mt-4 btn-primary text-sm px-5 py-2">+ Adicionar</button></div>`;
+            document.getElementById("quickAddBtn")?.addEventListener("click", () => openAppointmentModal());
+            return;
+        }
+        let html = `<div class="flex items-center justify-between mb-6"><h2 class="text-xl font-extrabold text-gray-800">Agendamentos</h2><span class="text-xs text-gray-400 font-bold">${formatDate(selectedDate)}</span></div><div class="space-y-5">`;
+        appointmentsList.forEach(apt => {
+            const time = apt.dateTime ? apt.dateTime.toDate().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : "--:--";
+            html += `
+                <div class="relative pl-6 border-l-2 border-gray-100 pb-2">
+                    <div class="timeline-dot bg-${apt.status === 'concluido' ? 'green' : 'purple'}-500"></div>
+                    <div class="bg-gray-50 p-4 rounded-3xl border border-gray-100 flex items-center justify-between group">
+                        <div><div class="flex items-center gap-2 mb-1"><span class="text-sm font-black text-purple-700">${time}</span><span class="text-[10px] font-bold text-gray-400">R$ ${(apt.price||0).toFixed(2)}</span></div><p class="text-sm font-semibold text-gray-700">${apt.clientName || apt.title} - ${apt.serviceName}</p></div>
+                        <div class="flex gap-1"><button class="editApt p-2 text-blue-500 bg-blue-50 rounded-xl" data-id="${apt.id}"><i class="fa-solid fa-pen text-xs"></i></button><button class="deleteApt p-2 text-red-500 bg-red-50 rounded-xl" data-id="${apt.id}" data-google="${apt.googleEventId || ''}"><i class="fa-solid fa-trash text-xs"></i></button></div>
+                    </div>
+                </div>`;
+        });
+        html += `</div><div class="mt-6 flex justify-center"><button id="addFromAgendaBtn" class="btn-primary text-sm px-6 py-2"><i class="fa-regular fa-calendar-plus mr-1"></i> Novo Agendamento</button></div>`;
+        container.innerHTML = html;
+        document.querySelectorAll(".editApt").forEach(btn => btn.addEventListener("click", (e) => { const id = btn.dataset.id; const apt = appointmentsList.find(a=>a.id===id); if(apt) openAppointmentModal(apt); }));
+        document.querySelectorAll(".deleteApt").forEach(btn => btn.addEventListener("click", (e) => deleteAppointment(btn.dataset.id, btn.dataset.google)));
+        document.getElementById("addFromAgendaBtn")?.addEventListener("click", ()=>openAppointmentModal());
+    }
+
+    // Modal Appointment
+    function openAppointmentModal(apt = null) {
+        const isEdit = !!apt;
+        const modalDiv = document.createElement("div");
+        modalDiv.className = "modal-overlay";
+        modalDiv.innerHTML = `
+            <div class="bg-white w-11/12 max-w-sm rounded-3xl p-6 shadow-2xl">
+                <h3 class="text-xl font-bold mb-4">${isEdit ? "Editar" : "Novo"} Agendamento</h3>
+                <input id="modalClient" placeholder="Nome cliente" class="w-full border rounded-xl p-3 mb-3" value="${apt?.clientName || ''}">
+                <input id="modalService" placeholder="Serviço" class="w-full border rounded-xl p-3 mb-3" value="${apt?.serviceName || ''}">
+                <input id="modalPrice" placeholder="Valor R$" type="number" step="0.01" class="w-full border rounded-xl p-3 mb-3" value="${apt?.price || ''}">
+                <input id="modalDate" type="date" class="w-full border rounded-xl p-3 mb-3" value="${apt?.dateTime ? apt.dateTime.toDate().toISOString().slice(0,10) : formatDate(selectedDate)}">
+                <input id="modalTime" type="time" class="w-full border rounded-xl p-3 mb-4" value="${apt?.dateTime ? apt.dateTime.toDate().toTimeString().slice(0,5) : "09:00"}">
+                <div class="flex gap-3">
+                    <button id="modalCancel" class="flex-1 btn-secondary">Cancelar</button>
+                    <button id="modalSave" class="flex-1 btn-primary">Salvar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalDiv);
+        const close = () => modalDiv.remove();
+        document.getElementById("modalCancel").onclick = close;
+        document.getElementById("modalSave").onclick = async () => {
+            const client = document.getElementById("modalClient").value;
+            const service = document.getElementById("modalService").value;
+            const price = parseFloat(document.getElementById("modalPrice").value);
+            const dateStr = document.getElementById("modalDate").value;
+            const timeStr = document.getElementById("modalTime").value;
+            if (!client || !service || isNaN(price)) { alert("Preencha todos os campos"); return; }
+            const dateTime = new Date(`${dateStr}T${timeStr}:00`);
+            const data = { clientName: client, serviceName: service, price, dateTime: firebase.firestore.Timestamp.fromDate(dateTime), status: "agendado", title: `${client} - ${service}` };
+            if (isEdit) { data.id = apt.id; data.googleEventId = apt.googleEventId; await saveAppointment(data, true); }
+            else { await saveAppointment(data, false); }
+            close();
+            loadAppointmentsForDate(selectedDate);
+        };
+    }
+
+    // ----------------------------- FINANCEIRO VIEW -----------------------------
+    async function renderFinanceiroView() {
+        const container = document.getElementById("dynamicView");
+        const now = new Date();
+        const month = now.getMonth();
+        const year = now.getFullYear();
+        const totalRevenue = await getTotalRevenue(month, year);
+        await loadExpenses();
+        const totalExpense = expensesList.reduce((acc, e) => acc + (e.amount || 0), 0);
+        const balance = totalRevenue - totalExpense;
+        let expensesHtml = `<div class="mt-6"><div class="flex justify-between items-center"><h3 class="font-bold text-lg">Despesas</h3><button id="newExpenseBtn" class="text-sm bg-red-100 text-red-600 px-3 py-1 rounded-full"><i class="fa-regular fa-plus"></i> Adicionar</button></div><div class="space-y-2 mt-3">`;
+        expensesList.forEach(exp => {
+            const d = exp.date.toDate().toLocaleDateString();
+            expensesHtml += `<div class="flex justify-between items-center bg-gray-50 p-3 rounded-2xl"><div><span class="font-medium">${exp.description}</span><div class="text-xs text-gray-400">${d}</div></div><div class="flex items-center gap-3"><span class="font-bold text-red-500">-R$ ${exp.amount.toFixed(2)}</span><button class="delExpense text-red-400" data-id="${exp.id}"><i class="fa-regular fa-trash-can"></i></button></div></div>`;
+        });
+        expensesHtml += `</div></div>`;
+        container.innerHTML = `
+            <div class="mb-6"><h2 class="text-2xl font-black text-gray-800">Financeiro</h2><p class="text-gray-500 text-sm">${new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(now)}</p></div>
+            <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-3xl p-5 shadow-sm">
+                <div class="flex justify-between items-center"><span class="text-gray-600">Receita Total</span><span class="text-2xl font-black text-green-600">R$ ${totalRevenue.toFixed(2)}</span></div>
+                <div class="flex justify-between items-center mt-3"><span class="text-gray-600">Despesas</span><span class="text-xl font-bold text-red-500">R$ ${totalExpense.toFixed(2)}</span></div>
+                <div class="border-t my-3 border-gray-200"></div>
+                <div class="flex justify-between items-center"><span class="font-bold">Saldo Líquido</span><span class="text-2xl font-black ${balance>=0?'text-purple-700':'text-red-600'}">R$ ${balance.toFixed(2)}</span></div>
+            </div>
+            ${expensesHtml}
+        `;
+        document.getElementById("newExpenseBtn")?.addEventListener("click", () => {
+            const desc = prompt("Descrição da despesa:");
+            const valor = parseFloat(prompt("Valor R$:"));
+            const data = prompt("Data (AAAA-MM-DD):", new Date().toISOString().slice(0,10));
+            if(desc && !isNaN(valor) && data) addExpense(desc, valor, data);
+        });
+        document.querySelectorAll(".delExpense").forEach(btn => btn.addEventListener("click", (e) => deleteExpense(btn.dataset.id)));
+    }
+
+    async function loadFinanceiroView() { await renderFinanceiroView(); }
+
+    // ----------------------------- CALENDÁRIO MENSAL -----------------------------
+    function renderCalendar() {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month+1, 0).getDate();
+        const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+        document.getElementById("monthDisplay").innerHTML = `${monthNames[month]} ${year}`;
+        const grid = document.getElementById("calendarGrid");
+        grid.innerHTML = "";
+        // dias vazios
+        for(let i=0; i< (firstDay === 0 ? 6 : firstDay-1); i++) {
+            const empty = document.createElement("div"); empty.className = "text-center py-2 text-sm text-white/20"; empty.innerText = ""; grid.appendChild(empty);
+        }
+        for(let d=1; d<=daysInMonth; d++) {
+            const dayDiv = document.createElement("div");
+            const isSelected = (selectedDate.getDate() === d && selectedDate.getMonth() === month && selectedDate.getFullYear() === year);
+            dayDiv.className = `calendar-day text-center py-2 text-sm text-white rounded-full cursor-pointer hover:bg-white/10 transition-all ${isSelected ? 'active' : ''}`;
+            dayDiv.innerText = d;
+            dayDiv.onclick = () => {
+                selectedDate = new Date(year, month, d);
+                renderCalendar();
+                if(activeTab === "agenda") loadAppointmentsForDate(selectedDate);
+            };
+            grid.appendChild(dayDiv);
+        }
+    }
+    document.getElementById("prevMonth").onclick = () => { currentDate.setMonth(currentDate.getMonth()-1); renderCalendar(); if(activeTab==="agenda") loadAppointmentsForDate(selectedDate); };
+    document.getElementById("nextMonth").onclick = () => { currentDate.setMonth(currentDate.getMonth()+1); renderCalendar(); if(activeTab==="agenda") loadAppointmentsForDate(selectedDate); };
+
+    // Navegação tabs
+    document.getElementById("navAgenda").onclick = () => {
+        activeTab = "agenda";
+        document.getElementById("navAgenda").classList.add("text-purple-600");
+        document.getElementById("navFinanceiro").classList.remove("text-purple-600");
+        document.getElementById("navFinanceiro").classList.add("text-gray-400");
+        loadAppointmentsForDate(selectedDate);
+    };
+    document.getElementById("navFinanceiro").onclick = () => {
+        activeTab = "financeiro";
+        document.getElementById("navFinanceiro").classList.add("text-purple-600");
+        document.getElementById("navAgenda").classList.remove("text-purple-600");
+        document.getElementById("navAgenda").classList.add("text-gray-400");
+        loadFinanceiroView();
+    };
+    document.getElementById("fabAdd").onclick = () => {
+        if(activeTab === "agenda") openAppointmentModal();
+        else document.getElementById("newExpenseBtn")?.click();
+    };
+    // menu simples (logoff)
+    document.getElementById("menuBtn").onclick = () => { if(confirm("Deseja sair?")) auth.signOut(); window.location.reload(); };
+    // inicialização
+    window.onload = () => { renderCalendar(); };
+</script>
+</body>
+</html>
