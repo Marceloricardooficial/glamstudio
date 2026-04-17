@@ -1,0 +1,349 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glam Studio Manager</title>
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkdsYW0gU3R1ZGlvIiwKICAic2hvcnRfbmFtZSI6ICJHbGFtIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmZmZmZmYiLAogICJ0aGVtZV9jb2xvciI6ICIjZTkxZTYzIgp9">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #f3f4f6; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .calendar-container { background: white; border-bottom-left-radius: 40px; border-bottom-right-radius: 40px; transition: all 0.3s ease; }
+        .upcoming-section { background: #f05282; min-height: 50vh; border-top-left-radius: 30px; border-top-right-radius: 30px; margin-top: -20px; flex-grow: 1; }
+        .day-cell { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 50%; font-weight: 600; font-size: 0.875rem; transition: 0.2s; position: relative; }
+        .day-cell:hover { background: #f3f4f6; }
+        .day-active { background: #f05282 !important; color: white !important; box-shadow: 0 4px 10px rgba(240, 82, 130, 0.4); }
+        .day-today { border: 2px solid #f05282; color: #f05282; }
+        .day-outside { opacity: 0.2; cursor: default; }
+        .day-has-event::after { content: ''; position: absolute; bottom: 4px; width: 4px; height: 4px; background: currentColor; border-radius: 50%; }
+        .loader { border-top-color: #f05282; animation: spinner 1s linear infinite; }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .btn-sync { background: rgba(240, 82, 130, 0.1); color: #f05282; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<div id="app" class="max-w-md mx-auto min-h-screen flex flex-col relative bg-white shadow-2xl">
+    
+    <!-- LOGIN VIEW -->
+    <div id="login-view" class="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-8 text-center">
+        <div class="mb-12 text-center">
+            <h1 class="text-5xl font-black text-gray-800 tracking-tighter">2026</h1>
+            <p class="text-pink-500 font-bold tracking-[0.3em] text-sm mt-2">GLAM STUDIO</p>
+        </div>
+        <button id="btn-login" class="w-full bg-pink-500 text-white py-4 rounded-2xl font-bold shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-transform">
+            <i class="fab fa-google"></i> ENTRAR COM GOOGLE
+        </button>
+    </div>
+
+    <!-- MAIN APP VIEW -->
+    <div id="main-view" class="hidden flex-1 flex flex-col">
+        
+        <!-- CALENDÁRIO SUPERIOR -->
+        <div class="calendar-container p-6 pb-8 z-10 shadow-sm">
+            <div class="flex justify-between items-center mb-6">
+                <button id="btn-logout" class="text-gray-300 hover:text-red-400"><i class="fas fa-sign-out-alt"></i></button>
+                <div class="flex items-center gap-3">
+                    <button id="btn-open-sync" class="btn-sync uppercase"><i class="fas fa-sync-alt mr-1"></i> Sincronizar</button>
+                    <i class="fas fa-bell text-gray-300"></i>
+                </div>
+            </div>
+
+            <div class="flex items-baseline justify-between mb-4">
+                <h2 id="display-year" class="text-3xl font-black text-gray-800">2026</h2>
+                <div class="flex gap-2">
+                    <button id="prev-month" class="p-1 text-gray-400"><i class="fas fa-chevron-left"></i></button>
+                    <button id="next-month" class="p-1 text-gray-400"><i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
+
+            <div id="month-tabs" class="flex gap-5 text-gray-300 font-black text-xs mb-6 uppercase overflow-x-auto no-scrollbar whitespace-nowrap">
+                <!-- Meses via JS -->
+            </div>
+            
+            <div class="grid grid-cols-7 text-center text-[10px] font-black text-gray-300 mb-4 uppercase tracking-widest">
+                <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+            </div>
+            <div id="calendar-grid" class="grid grid-cols-7 text-center gap-y-2">
+                <!-- Dias via JS -->
+            </div>
+        </div>
+
+        <!-- LISTA DE AGENDAMENTOS (UPCOMING) -->
+        <div class="upcoming-section p-8 text-white relative flex flex-col">
+            <div class="flex justify-between items-center mb-8">
+                <span id="list-label" class="text-[10px] font-black tracking-[0.2em] uppercase opacity-70">Upcoming</span>
+                <i class="fas fa-plus-circle text-2xl opacity-80 cursor-pointer"></i>
+            </div>
+
+            <div id="appointments-list" class="space-y-8 flex-grow">
+                <!-- Lista via JS -->
+            </div>
+
+            <div id="sync-overlay" class="hidden absolute inset-0 bg-pink-500 bg-opacity-95 flex flex-col items-center justify-center z-20 rounded-t-3xl text-center p-6">
+                <div id="sync-status-content">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-white h-12 w-12 mb-4 mx-auto"></div>
+                    <p class="font-black text-sm tracking-widest">SINCRONIZANDO...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIGURAÇÃO DE SINCRONISMO -->
+    <div id="sync-modal" class="hidden fixed inset-0 z-[110] bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl">
+            <h3 class="text-xl font-black text-gray-800 mb-2">Google Calendar</h3>
+            <p class="text-gray-400 text-sm mb-6 font-medium">Desde quando deseja importar os seus agendamentos?</p>
+            
+            <label class="block text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">Data de Início</label>
+            <input type="date" id="sync-date-start" class="w-full bg-gray-50 border-none rounded-2xl p-4 mb-6 text-gray-700 font-bold outline-none focus:ring-2 focus:ring-pink-200">
+            
+            <button id="btn-start-sync" class="w-full bg-pink-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-pink-200 active:scale-95 transition-all">
+                AUTORIZAR E IMPORTAR
+            </button>
+            <button id="btn-close-sync" class="w-full mt-4 text-gray-400 font-bold text-sm">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, query, where, onSnapshot, Timestamp, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+        authDomain: "glam-studio-8b65c.firebaseapp.com",
+        projectId: "glam-studio-8b65c",
+        storageBucket: "glam-studio-8b65c.firebasestorage.app",
+        messagingSenderId: "154294556895",
+        appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
+
+    let googleToken = null;
+    let selectedDate = new Date();
+    let currentCalendarMonth = new Date().getMonth();
+    let currentCalendarYear = new Date().getFullYear();
+    let allAppointments = [];
+
+    const monthsNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+    // --- LÓGICA DE CALENDÁRIO ---
+    function renderCalendar() {
+        const grid = document.getElementById('calendar-grid');
+        const monthTabs = document.getElementById('month-tabs');
+        const displayYear = document.getElementById('display-year');
+        
+        grid.innerHTML = "";
+        monthTabs.innerHTML = "";
+        displayYear.innerText = currentCalendarYear;
+
+        monthsNames.forEach((m, idx) => {
+            const short = m.substring(0, 3).toUpperCase();
+            const isActive = idx === currentCalendarMonth;
+            const span = document.createElement('span');
+            span.innerText = short;
+            span.className = `${isActive ? 'text-gray-800 border-b-2 border-pink-500 pb-1' : ''} cursor-pointer hover:text-gray-500 font-black`;
+            span.onclick = () => { currentCalendarMonth = idx; renderCalendar(); };
+            monthTabs.appendChild(span);
+        });
+
+        const firstDay = new Date(currentCalendarYear, currentCalendarMonth, 1).getDay();
+        const daysInMonth = new Date(currentCalendarYear, currentCalendarMonth + 1, 0).getDate();
+        const prevDaysInMonth = new Date(currentCalendarYear, currentCalendarMonth, 0).getDate();
+
+        for (let i = firstDay - 1; i >= 0; i--) {
+            grid.innerHTML += `<div class="day-cell day-outside">${prevDaysInMonth - i}</div>`;
+        }
+
+        for (let i = 1; i <= daysInMonth; i++) {
+            const d = new Date(currentCalendarYear, currentCalendarMonth, i);
+            const isToday = i === new Date().getDate() && currentCalendarMonth === new Date().getMonth() && currentCalendarYear === new Date().getFullYear();
+            const isSelected = i === selectedDate.getDate() && currentCalendarMonth === selectedDate.getMonth() && currentCalendarYear === selectedDate.getFullYear();
+            
+            const hasEvents = allAppointments.some(app => {
+                const ad = app.start.toDate();
+                return ad.getDate() === i && ad.getMonth() === currentCalendarMonth && ad.getFullYear() === currentCalendarYear;
+            });
+
+            grid.innerHTML += `
+                <div class="day-cell ${isToday ? 'day-today' : ''} ${isSelected ? 'day-active' : ''} ${hasEvents ? 'day-has-event' : ''}" 
+                     onclick="window.selectDay(${i})">${i}</div>`;
+        }
+    }
+
+    window.selectDay = (d) => {
+        selectedDate = new Date(currentCalendarYear, currentCalendarMonth, d);
+        renderCalendar();
+        filterAppointments();
+    };
+
+    document.getElementById('prev-month').onclick = () => {
+        currentCalendarMonth--;
+        if (currentCalendarMonth < 0) { currentCalendarMonth = 11; currentCalendarYear--; }
+        renderCalendar();
+    };
+
+    document.getElementById('next-month').onclick = () => {
+        currentCalendarMonth++;
+        if (currentCalendarMonth > 11) { currentCalendarMonth = 0; currentCalendarYear++; }
+        renderCalendar();
+    };
+
+    // --- LÓGICA DE DADOS ---
+    function filterAppointments() {
+        const list = document.getElementById('appointments-list');
+        const label = document.getElementById('list-label');
+        list.innerHTML = "";
+
+        const isToday = selectedDate.toDateString() === new Date().toDateString();
+        label.innerText = isToday ? "Today" : `${selectedDate.getDate()} de ${monthsNames[selectedDate.getMonth()]}`;
+
+        const filtered = allAppointments.filter(app => {
+            const d = app.start.toDate();
+            return d.getDate() === selectedDate.getDate() && 
+                   d.getMonth() === selectedDate.getMonth() && 
+                   d.getFullYear() === selectedDate.getFullYear();
+        }).sort((a,b) => a.start - b.start);
+
+        if (filtered.length === 0) {
+            list.innerHTML = `<div class="py-16 text-center opacity-40 font-black text-xs uppercase tracking-widest">Nenhum atendimento</div>`;
+            return;
+        }
+
+        filtered.forEach(app => {
+            const time = app.start.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            list.innerHTML += `
+                <div class="flex gap-6 items-start animate-fade-in">
+                    <div class="flex flex-col items-center">
+                        <span class="bg-white text-pink-500 w-9 h-9 rounded-full flex items-center justify-center text-xs font-black shadow-lg">${selectedDate.getDate()}</span>
+                        <div class="w-px h-14 border-l-2 border-dashed border-white opacity-20 mt-2"></div>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="font-black text-lg uppercase tracking-tight">${app.clientName}</h4>
+                        <p class="text-[10px] font-bold opacity-60 mb-2">${time}</p>
+                        <div class="inline-flex items-center bg-white bg-opacity-20 px-3 py-1 rounded-full text-[10px] font-black">
+                            <i class="fas fa-wallet mr-2 text-[8px]"></i> ${app.value}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    function listenAppointments(uid) {
+        const q = query(collection(db, "appointments"), where("userId", "==", uid));
+        onSnapshot(q, (snapshot) => {
+            allAppointments = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+            renderCalendar(); // Re-render para atualizar os pontinhos sob os dias
+            filterAppointments();
+        });
+    }
+
+    // --- SINCRONISMO ---
+    async function startSync(dateStart) {
+        if (!googleToken) {
+            const result = await signInWithPopup(auth, provider);
+            googleToken = GoogleAuthProvider.credentialFromResult(result).accessToken;
+        }
+
+        const overlay = document.getElementById('sync-overlay');
+        const statusContent = document.getElementById('sync-status-content');
+        overlay.classList.remove('hidden');
+        document.getElementById('sync-modal').classList.add('hidden');
+
+        try {
+            const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${new Date(dateStart).toISOString()}&singleEvents=true&orderBy=startTime`, {
+                headers: { 'Authorization': `Bearer ${googleToken}` }
+            });
+            const data = await response.json();
+
+            if (data.items) {
+                let count = 0;
+                for (const item of data.items) {
+                    const price = item.description ? (item.description.match(/R\$\s?(\d+)/)?.[0] || item.description) : "R$ 0,00";
+                    
+                    // Verifica se já existe para evitar duplicados simples por googleId
+                    const qExisting = query(collection(db, "appointments"), where("googleId", "==", item.id));
+                    const snapExisting = await getDoc(doc(db, "appointments", item.id)); // Ou check simples
+
+                    await addDoc(collection(db, "appointments"), {
+                        clientName: item.summary || "Cliente",
+                        start: Timestamp.fromDate(new Date(item.start.dateTime || item.start.date)),
+                        value: price,
+                        userId: auth.currentUser.uid,
+                        salonId: "glam_studio_main",
+                        googleId: item.id
+                    });
+                    count++;
+                }
+
+                statusContent.innerHTML = `
+                    <div class="w-16 h-16 bg-white text-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-check text-2xl"></i>
+                    </div>
+                    <p class="font-black text-sm tracking-widest uppercase">${count} ATENDIMENTOS SINCRONIZADOS</p>
+                    <button id="btn-sync-done" class="mt-6 border-2 border-white px-6 py-2 rounded-full font-black text-xs">OK</button>
+                `;
+                
+                document.getElementById('btn-sync-done').onclick = () => overlay.classList.add('hidden');
+            } else {
+                alert("Nenhum evento encontrado no Google Calendar.");
+                overlay.classList.add('hidden');
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Erro na sincronização.");
+            overlay.classList.add('hidden');
+        }
+    }
+
+    // --- BOTÕES E FLOW ---
+    document.getElementById('btn-login').onclick = async () => {
+        try {
+            const result = await signInWithPopup(auth, provider);
+            googleToken = GoogleAuthProvider.credentialFromResult(result).accessToken;
+            await setDoc(doc(db, "users", result.user.uid), {
+                name: result.user.displayName,
+                email: result.user.email,
+                salonId: "glam_studio_main"
+            }, { merge: true });
+        } catch (e) { console.error(e); }
+    };
+
+    document.getElementById('btn-logout').onclick = () => signOut(auth);
+    document.getElementById('btn-open-sync').onclick = () => document.getElementById('sync-modal').classList.remove('hidden');
+    document.getElementById('btn-close-sync').onclick = () => document.getElementById('sync-modal').classList.add('hidden');
+    
+    document.getElementById('btn-start-sync').onclick = () => {
+        const d = document.getElementById('sync-date-start').value;
+        if (!d) return alert("Selecione uma data.");
+        startSync(d);
+    };
+
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('main-view').classList.remove('hidden');
+            renderCalendar();
+            listenAppointments(user.uid);
+        } else {
+            document.getElementById('login-view').classList.remove('hidden');
+            document.getElementById('main-view').classList.add('hidden');
+        }
+    });
+
+</script>
+</body>
+</html>
+
+```
