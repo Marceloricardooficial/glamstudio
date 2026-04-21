@@ -1,0 +1,459 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão Pro - Edição Roxo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google API & Auth SDKs -->
+    <script src="https://accounts.google.com/gsi/client" async></script>
+    <script src="https://apis.google.com/js/api.js" async></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --primary-purple: #6d28d9;
+            --dark-purple: #2e1065;
+            --light-purple: #a78bfa;
+            --bg-purple: #f5f3ff;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-purple);
+            padding-bottom: 110px;
+            color: #1e1b4b;
+        }
+
+        .credit-card-gradient {
+            background: linear-gradient(135deg, #4c1d95 0%, #2e1065 100%);
+            color: white;
+            border-radius: 28px;
+            box-shadow: 0 20px 40px rgba(46, 16, 101, 0.25);
+        }
+
+        .day-pill {
+            min-width: 65px;
+            height: 85px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .day-pill.active {
+            background: var(--primary-purple);
+            color: white;
+            transform: scale(1.1);
+            box-shadow: 0 8px 20px rgba(109, 40, 217, 0.3);
+        }
+
+        .floating-menu {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            height: 75px;
+            background: var(--dark-purple);
+            border-radius: 40px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .menu-item { color: #c4b5fd; font-size: 0.75rem; opacity: 0.7; display: flex; flex-direction: column; align-items: center; }
+        .menu-item.active { color: white; opacity: 1; }
+        .menu-item.active i { background: var(--primary-purple); width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; border-radius: 50%; margin-bottom: 4px; }
+
+        #sync-modal { display: none; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .btn-disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Modal de Configuração Inicial -->
+    <div id="sync-modal" class="fixed inset-0 z-[2000] flex items-center justify-center p-6">
+        <div class="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl space-y-6">
+            <div class="text-center">
+                <div class="w-20 h-20 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fab fa-google text-3xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-indigo-950">Configuração Inicial</h3>
+                <p class="text-sm text-slate-500 mt-2">Escolha a data inicial para buscar seus agendamentos no Google.</p>
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] font-bold text-violet-400 uppercase ml-1">Sincronizar a partir de:</label>
+                <input type="date" id="sync-date-input" class="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-indigo-950 outline-none focus:border-violet-500 transition-all">
+            </div>
+            <button id="modal-save-btn" class="w-full bg-violet-700 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all">
+                SALVAR E CONECTAR
+            </button>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="p-6 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-50">
+        <h1 class="text-2xl font-extrabold text-indigo-950 tracking-tight">Studio Pro</h1>
+        <div id="sync-container" class="flex items-center gap-3">
+            <button id="sync-btn" class="btn-disabled bg-violet-700 text-white px-5 py-2.5 rounded-full text-xs font-bold transition-all shadow-lg flex items-center gap-2">
+                <i class="fas fa-sync-alt" id="sync-icon"></i>
+                <span>CARREGANDO...</span>
+            </button>
+            <div id="user-profile" class="hidden flex items-center gap-2 animate-fade-in">
+                <span class="text-[10px] text-violet-700 font-bold bg-violet-100 px-3 py-1.5 rounded-full flex items-center gap-2">
+                    <span class="w-2 h-2 bg-violet-600 rounded-full animate-ping"></span> ONLINE
+                </span>
+                <img id="profile-img" src="https://ui-avatars.com/api/?name=User&background=6d28d9&color=fff" class="w-11 h-11 rounded-full border-2 border-violet-200 shadow-md">
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto p-5 space-y-8">
+        <!-- Finance Card -->
+        <section class="credit-card-gradient p-7">
+            <div class="flex justify-between items-start mb-8">
+                <div class="flex flex-col">
+                    <span class="text-[10px] uppercase tracking-widest opacity-70 font-bold">Resumo Financeiro</span>
+                    <span class="text-xl font-bold">Painel Geral</span>
+                </div>
+                <i class="fas fa-crown text-amber-400 bg-white/10 p-2 rounded-lg"></i>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center border-b border-white/10 pb-5 mb-5">
+                <div><p class="text-[9px] opacity-60 font-bold uppercase">Hoje</p><p id="stat-today-qty" class="text-lg font-bold">0</p></div>
+                <div><p class="text-[9px] opacity-60 font-bold uppercase">Semana</p><p id="stat-week-qty" class="text-lg font-bold">0</p></div>
+                <div><p class="text-[9px] opacity-60 font-bold uppercase">Mês</p><p id="stat-month-qty" class="text-lg font-bold">0</p></div>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center">
+                <div id="stat-today-val" class="text-[10px] font-bold bg-white/10 py-1 rounded">R$ 0</div>
+                <div id="stat-week-val" class="text-[10px] font-bold bg-white/10 py-1 rounded">R$ 0</div>
+                <div id="stat-month-val" class="text-[10px] font-bold bg-white/10 py-1 rounded">R$ 0</div>
+            </div>
+        </section>
+
+        <!-- Calendário -->
+        <section class="space-y-5">
+            <div class="flex justify-between items-end px-1">
+                <div>
+                    <p class="text-xs font-bold text-violet-400 uppercase tracking-widest">Calendário</p>
+                    <h3 id="current-month" class="font-extrabold text-indigo-950 text-xl">---</h3>
+                </div>
+                <div class="flex gap-2">
+                    <button id="prev-week" class="w-10 h-10 bg-white rounded-xl shadow-sm text-violet-700"><i class="fas fa-chevron-left"></i></button>
+                    <button id="next-week" class="w-10 h-10 bg-white rounded-xl shadow-sm text-violet-700"><i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
+            <div id="calendar-days" class="flex gap-3 overflow-x-auto pb-4 no-scrollbar"></div>
+        </section>
+
+        <!-- Agendamentos -->
+        <section class="space-y-4">
+            <div class="flex justify-between items-center">
+                <h4 class="font-bold text-indigo-950">Agenda do Dia</h4>
+                <button onclick="window.open('https://calendar.google.com/', '_blank')" class="text-violet-600 text-xs font-bold border-b-2 border-violet-100">GOOGLE CALENDAR</button>
+            </div>
+            <div id="appointments-list" class="space-y-4">
+                <div class="text-center py-12 opacity-40 italic text-sm">Carregando agendamentos...</div>
+            </div>
+        </section>
+
+        <section class="bg-white p-6 rounded-[32px] shadow-xl border border-violet-50">
+            <h4 class="font-bold text-indigo-950 mb-6">Desempenho</h4>
+            <div class="h-56 w-full"><canvas id="weeklyChart"></canvas></div>
+        </section>
+    </main>
+
+    <nav class="floating-menu">
+        <a href="#" class="menu-item active"><i class="fas fa-home text-lg"></i><span>Início</span></a>
+        <a href="#" class="menu-item"><i class="fas fa-calendar-alt text-lg"></i><span>Agenda</span></a>
+        <a href="#" class="menu-item"><i class="fas fa-wallet text-lg"></i><span>Ganhos</span></a>
+        <a href="#" class="menu-item"><i class="fas fa-cog text-lg"></i><span>Ajustes</span></a>
+    </nav>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+            authDomain: "glam-studio-8b65c.firebaseapp.com",
+            projectId: "glam-studio-8b65c",
+            storageBucket: "glam-studio-8b65c.firebasestorage.app",
+            messagingSenderId: "154294556895",
+            appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+        };
+
+        const CLIENT_ID = '1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com';
+        const SCOPES = 'https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/userinfo.profile';
+        const APP_ID = "glam-studio-8b65c";
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let userUid = null;
+        let tokenClient;
+        let gapiInited = false;
+        let gsiInited = false;
+        let selectedDate = new Date();
+        let allEvents = [];
+
+        // Inicialização
+        async function start() {
+            // Firebase Auth
+            await signInAnonymously(auth);
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userUid = user.uid;
+                    checkSettings();
+                    loadCalendarUI();
+                    listenToEvents();
+                }
+            });
+
+            // Google SDKs
+            loadGoogleSDKs();
+        }
+
+        function loadGoogleSDKs() {
+            // GAPI
+            const gapiScript = document.createElement('script');
+            gapiScript.src = "https://apis.google.com/js/api.js";
+            gapiScript.onload = () => {
+                gapi.load('client', async () => {
+                    await gapi.client.init({
+                        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
+                    });
+                    gapiInited = true;
+                    maybeEnableSyncButton();
+                });
+            };
+            document.head.appendChild(gapiScript);
+
+            // GSI (Identity)
+            const gsiScript = document.createElement('script');
+            gsiScript.src = "https://accounts.google.com/gsi/client";
+            gsiScript.onload = () => {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: CLIENT_ID,
+                    scope: SCOPES,
+                    callback: '', // definida no click
+                });
+                gsiInited = true;
+                maybeEnableSyncButton();
+            };
+            document.head.appendChild(gsiScript);
+        }
+
+        function maybeEnableSyncButton() {
+            if (gapiInited && gsiInited) {
+                const btn = document.getElementById('sync-btn');
+                btn.classList.remove('btn-disabled');
+                btn.querySelector('span').innerText = 'SINCRONIZAR';
+                btn.onclick = handleSync;
+            }
+        }
+
+        // Ação de Sincronizar
+        async function handleSync() {
+            const icon = document.getElementById('sync-icon');
+            icon.classList.add('animate-spin');
+
+            tokenClient.callback = async (resp) => {
+                if (resp.error) {
+                    icon.classList.remove('animate-spin');
+                    return;
+                }
+
+                // UI Online
+                document.getElementById('sync-btn').classList.add('hidden');
+                document.getElementById('user-profile').classList.remove('hidden');
+
+                // Info do Perfil
+                fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${resp.access_token}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if(data.picture) document.getElementById('profile-img').src = data.picture;
+                    });
+
+                await performEventSync();
+                icon.classList.remove('animate-spin');
+            };
+
+            if (gapi.client.getToken() === null) {
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            } else {
+                tokenClient.requestAccessToken({prompt: ''});
+            }
+        }
+
+        async function performEventSync() {
+            const snap = await getDoc(doc(db, 'artifacts', APP_ID, 'users', userUid, 'settings', 'sync'));
+            const timeMin = snap.exists() ? new Date(snap.data().date).toISOString() : new Date().toISOString();
+
+            try {
+                const response = await gapi.client.calendar.events.list({
+                    calendarId: 'primary',
+                    timeMin: timeMin,
+                    singleEvents: true,
+                    orderBy: 'startTime',
+                });
+
+                const items = response.result.items || [];
+                for (const item of items) {
+                    const price = extractPrice(item.summary + " " + (item.description || ""));
+                    await setDoc(doc(db, 'artifacts', APP_ID, 'users', userUid, 'appointments', item.id), {
+                        id: item.id,
+                        title: item.summary,
+                        start: item.start.dateTime || item.start.date,
+                        price: price,
+                        description: item.description || "",
+                        syncAt: new Date().toISOString()
+                    });
+                }
+            } catch (e) { console.error("Erro sync:", e); }
+        }
+
+        function extractPrice(str) {
+            const matches = str.match(/\d+/g);
+            return matches ? parseFloat(matches[0]) : 0;
+        }
+
+        // Firestore & UI
+        async function checkSettings() {
+            const ref = doc(db, 'artifacts', APP_ID, 'users', userUid, 'settings', 'sync');
+            const snap = await getDoc(ref);
+            if(!snap.exists()) {
+                document.getElementById('sync-modal').style.display = 'flex';
+            } else {
+                setTimeout(() => { if(confirm("Sincronizar novos dados do Google agora?")) handleSync(); }, 1000);
+            }
+        }
+
+        document.getElementById('modal-save-btn').onclick = async () => {
+            const date = document.getElementById('sync-date-input').value;
+            if(!date) return alert("Escolha uma data!");
+            await setDoc(doc(db, 'artifacts', APP_ID, 'users', userUid, 'settings', 'sync'), { date: date });
+            document.getElementById('sync-modal').style.display = 'none';
+            handleSync();
+        };
+
+        function listenToEvents() {
+            onSnapshot(collection(db, 'artifacts', APP_ID, 'users', userUid, 'appointments'), (snap) => {
+                allEvents = [];
+                snap.forEach(d => allEvents.push(d.data()));
+                updateUI();
+            });
+        }
+
+        function updateUI() {
+            renderAppointments();
+            renderStats();
+            renderChart();
+        }
+
+        function renderAppointments() {
+            const list = document.getElementById('appointments-list');
+            const filtered = allEvents.filter(e => new Date(e.start).toDateString() === selectedDate.toDateString());
+            
+            if(filtered.length === 0) {
+                list.innerHTML = `<div class="text-center py-10 opacity-30 text-xs font-bold">Nenhum evento para este dia</div>`;
+                return;
+            }
+
+            list.innerHTML = filtered.sort((a,b) => new Date(a.start) - new Date(b.start)).map(e => `
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-violet-50 flex justify-between items-center animate-fade-in">
+                    <div class="flex gap-4 items-center">
+                        <div class="bg-violet-50 text-violet-700 font-bold text-xs p-3 rounded-xl">
+                            ${new Date(e.start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                        </div>
+                        <div>
+                            <p class="font-bold text-indigo-950 text-sm">${e.title}</p>
+                            <p class="text-[10px] text-violet-400">R$ ${e.price.toFixed(2)}</p>
+                        </div>
+                    </div>
+                    <i class="fas fa-check-circle text-green-500"></i>
+                </div>
+            `).join('');
+        }
+
+        function renderStats() {
+            const now = new Date();
+            let dQ = 0, dV = 0, wQ = 0, wV = 0, mQ = 0, mV = 0;
+
+            allEvents.forEach(e => {
+                const dt = new Date(e.start);
+                const val = e.price || 0;
+                if(dt.toDateString() === now.toDateString()) { dQ++; dV += val; }
+                if(dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear()) { mQ++; mV += val; }
+                const diff = (now - dt) / 86400000;
+                if(diff >= 0 && diff <= 7) { wQ++; wV += val; }
+            });
+
+            document.getElementById('stat-today-qty').innerText = dQ;
+            document.getElementById('stat-week-qty').innerText = wQ;
+            document.getElementById('stat-month-qty').innerText = mQ;
+            document.getElementById('stat-today-val').innerText = `R$ ${dV}`;
+            document.getElementById('stat-week-val').innerText = `R$ ${wV}`;
+            document.getElementById('stat-month-val').innerText = `R$ ${mV}`;
+        }
+
+        function loadCalendarUI() {
+            const container = document.getElementById('calendar-days');
+            const monthDisplay = document.getElementById('current-month');
+            const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+            
+            container.innerHTML = '';
+            monthDisplay.innerText = `${months[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
+
+            for (let i = -3; i <= 7; i++) {
+                const d = new Date(selectedDate);
+                d.setDate(selectedDate.getDate() + i);
+                const active = i === 0;
+                const pill = document.createElement('div');
+                pill.className = `day-pill bg-white flex flex-col items-center justify-center rounded-2xl cursor-pointer shadow-sm ${active ? 'active' : 'text-slate-400'}`;
+                pill.onclick = () => { selectedDate = d; loadCalendarUI(); updateUI(); };
+                pill.innerHTML = `<span class="text-[9px] uppercase font-bold">${days[d.getDay()]}</span><span class="text-xl font-bold">${d.getDate()}</span>`;
+                container.appendChild(pill);
+            }
+        }
+
+        document.getElementById('prev-week').onclick = () => { selectedDate.setDate(selectedDate.getDate() - 7); loadCalendarUI(); updateUI(); };
+        document.getElementById('next-week').onclick = () => { selectedDate.setDate(selectedDate.getDate() + 7); loadCalendarUI(); updateUI(); };
+
+        let chart;
+        function renderChart() {
+            const ctx = document.getElementById('weeklyChart');
+            if(chart) chart.destroy();
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['S','T','Q','Q','S','S','D'],
+                    datasets: [{
+                        label: 'Ganhos',
+                        data: [120, 190, 300, 250, 400, 550, 100],
+                        borderColor: '#6d28d9',
+                        tension: 0.4,
+                        fill: true,
+                        backgroundColor: 'rgba(109, 40, 217, 0.1)'
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { display: false }, x: { grid: { display: false } } } }
+            });
+        }
+
+        window.onload = start;
+    </script>
+</body>
+</html>
+
+```
