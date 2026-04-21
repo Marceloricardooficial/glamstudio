@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#2e1065">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Studio Pro">
+<title>Studio Pro</title>
+
+<!-- CDNs -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp }        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut }
+                                from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, setDoc, getDocs, query, where, deleteDoc, Timestamp }
+                                from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const app = initializeApp({
+  apiKey:            "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+  authDomain:        "glam-studio-8b65c.firebaseapp.com",
+  projectId:         "glam-studio-8b65c",
+  storageBucket:     "glam-studio-8b65c.firebasestorage.app",
+  messagingSenderId: "154294556895",
+  appId:             "1:154294556895:web:a42cad3171fb0fbfa7716a"
+});
+
+const provider = new GoogleAuthProvider();
+provider.addScope("https://www.googleapis.com/auth/calendar");
+
+window._fb = {
+  auth, db: getFirestore(app), provider,
+  signInWithPopup, signOut, onAuthStateChanged,
+  collection, doc, setDoc, getDocs, query, where, deleteDoc, Timestamp,
+  auth: getAuth(app)
+};
+</script>
+
+<style>
+:root {
+  --pp: #6d28d9;
+  --dp: #2e1065;
+  --lp: #a78bfa;
+  --bg: #f5f3ff;
+  --white: #ffffff;
+  --text: #1e1b4b;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:'Plus Jakarta Sans',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  display:flex;
+  flex-direction:column;
+  max-width:430px;
+  margin:0 auto;
+  position:relative;
+}
+
+/* ── SCROLLABLE MAIN ── */
+.app-scroll{
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding-bottom:100px;
+  scroll-behavior:smooth;
+}
+.app-scroll::-webkit-scrollbar{display:none}
+
+/* ── HEADER ── */
+.app-header{
+  background:rgba(255,255,255,.95);
+  backdrop-filter:blur(12px);
+  padding:18px 20px 14px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  border-bottom:1px solid rgba(109,40,217,.08);
+  position:sticky;top:0;z-index:100;
+  flex-shrink:0;
+}
+.logo{font-size:1.35rem;font-weight:800;color:#1e1b4b;letter-spacing:-.5px}
+.logo span{color:var(--pp)}
+
+/* ── FINANCE CARD ── */
+.finance-card{
+  background:linear-gradient(135deg,#4c1d95 0%,#1e0c50 100%);
+  border-radius:24px;
+  color:#fff;
+  padding:22px 20px;
+  box-shadow:0 16px 40px rgba(46,16,101,.3);
+  position:relative;
+  overflow:hidden;
+}
+.finance-card::before{
+  content:'';position:absolute;top:-40px;right:-40px;
+  width:160px;height:160px;border-radius:50%;
+  background:rgba(255,255,255,.04);
+}
+.finance-card::after{
+  content:'';position:absolute;bottom:-30px;left:-20px;
+  width:100px;height:100px;border-radius:50%;
+  background:rgba(255,255,255,.03);
+}
+
+/* ── STAT CHIP ── */
+.stat-chip{
+  background:rgba(255,255,255,.12);
+  border-radius:12px;
+  padding:8px 6px;
+  text-align:center;
+}
+
+/* ── MONTH CALENDAR ── */
+.cal-grid{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:2px;
+}
+.cal-day{
+  aspect-ratio:1;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:50%;
+  font-size:13px;font-weight:600;
+  cursor:pointer;
+  transition:all .2s;
+  position:relative;
+}
+.cal-day:hover{background:rgba(109,40,217,.08)}
+.cal-day.today{
+  background:rgba(109,40,217,.12);
+  color:var(--pp);font-weight:800;
+}
+.cal-day.selected{
+  background:var(--pp);color:#fff;
+  box-shadow:0 4px 14px rgba(109,40,217,.4);
+}
+.cal-day.other-month{opacity:.3}
+.cal-day.has-event::after{
+  content:'';position:absolute;bottom:3px;
+  width:4px;height:4px;border-radius:50%;
+  background:var(--lp);
+}
+.cal-day.selected.has-event::after{background:rgba(255,255,255,.8)}
+.cal-head{font-size:11px;font-weight:700;text-align:center;color:#9ca3af;padding:4px 0}
+
+/* ── APPOINTMENT CARD ── */
+.appt-card{
+  background:#fff;
+  border-radius:18px;
+  padding:14px 16px;
+  display:flex;align-items:center;gap:12px;
+  box-shadow:0 2px 12px rgba(109,40,217,.06);
+  border:1px solid rgba(109,40,217,.06);
+  animation:fadeUp .35s ease forwards;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+.appt-time{
+  background:var(--bg);
+  color:var(--pp);
+  font-weight:800;font-size:12px;
+  padding:10px 8px;border-radius:12px;
+  min-width:50px;text-align:center;
+  line-height:1.2;
+}
+.status-badge{
+  font-size:10px;font-weight:700;
+  padding:3px 10px;border-radius:20px;
+  white-space:nowrap;
+}
+.status-done{background:#dcfce7;color:#16a34a}
+.status-progress{background:#fef9c3;color:#ca8a04}
+.status-pending{background:#ede9fe;color:var(--pp)}
+
+/* ── FLOATING NAV ── */
+.floating-nav{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  width:calc(100% - 32px);max-width:400px;
+  height:68px;
+  background:var(--dp);
+  border-radius:36px;
+  display:flex;justify-content:space-around;align-items:center;
+  box-shadow:0 12px 32px rgba(46,16,101,.45);
+  z-index:200;
+}
+.nav-item{
+  color:#c4b5fd;display:flex;flex-direction:column;
+  align-items:center;font-size:.65rem;font-weight:700;
+  opacity:.65;transition:all .25s;cursor:pointer;
+  gap:2px;padding:0 10px;
+}
+.nav-item.active{color:#fff;opacity:1;transform:translateY(-4px)}
+.nav-item.active .nav-icon{
+  background:var(--pp);width:40px;height:40px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 14px rgba(109,40,217,.5);
+}
+
+/* ── MODAL OVERLAY ── */
+.modal-overlay{
+  position:fixed;inset:0;z-index:500;
+  background:rgba(15,10,40,.55);
+  backdrop-filter:blur(6px);
+  display:flex;align-items:flex-end;justify-content:center;
+  padding-bottom:0;
+}
+.modal-sheet{
+  background:#fff;
+  border-radius:28px 28px 0 0;
+  width:100%;max-width:430px;
+  max-height:92vh;
+  overflow-y:auto;
+  padding:0 0 32px;
+  animation:slideUp .3s cubic-bezier(.34,1.2,.64,1);
+}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+
+.modal-handle{
+  width:40px;height:4px;border-radius:2px;
+  background:#e5e7eb;margin:12px auto 0;
+}
+.modal-header-bar{
+  background:linear-gradient(135deg,#4c1d95,#2e1065);
+  padding:18px 20px 16px;color:#fff;
+  border-radius:0;
+}
+
+/* ── DRUM PICKER ── */
+.drum-picker{
+  display:flex;gap:12px;justify-content:center;
+  overflow:hidden;
+}
+.drum-col{
+  display:flex;flex-direction:column;align-items:center;
+  height:110px;overflow:hidden;position:relative;
+  flex:1;
+}
+.drum-col::before,.drum-col::after{
+  content:'';position:absolute;left:0;right:0;height:36px;z-index:2;pointer-events:none;
+}
+.drum-col::before{top:0;background:linear-gradient(to bottom,#fff,transparent)}
+.drum-col::after{bottom:0;background:linear-gradient(to top,#fff,transparent)}
+.drum-scroll{
+  display:flex;flex-direction:column;align-items:center;
+  overflow-y:scroll;height:100%;
+  scroll-snap-type:y mandatory;
+  -webkit-overflow-scrolling:touch;
+  gap:0;
+  scrollbar-width:none;
+}
+.drum-scroll::-webkit-scrollbar{display:none}
+.drum-item{
+  min-height:36px;display:flex;align-items:center;justify-content:center;
+  scroll-snap-align:center;
+  font-size:16px;font-weight:600;color:#6b7280;
+  width:100%;
+  transition:all .15s;
+}
+.drum-selected-line{
+  position:absolute;top:50%;transform:translateY(-50%);
+  left:4px;right:4px;height:36px;
+  background:rgba(109,40,217,.07);
+  border-radius:10px;pointer-events:none;z-index:1;
+  border-top:1px solid rgba(109,40,217,.15);
+  border-bottom:1px solid rgba(109,40,217,.15);
+}
+
+/* ── FORM ── */
+.inp{
+  width:100%;border:1.5px solid #e5e7eb;
+  border-radius:14px;padding:12px 14px;
+  font-size:14px;font-family:inherit;
+  outline:none;transition:border-color .2s;
+  background:#fafafa;
+}
+.inp:focus{border-color:var(--pp);background:#fff}
+
+/* ── TOAST ── */
+#toast{
+  position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(10px);
+  background:#1e1b4b;color:#fff;
+  padding:11px 22px;border-radius:50px;
+  font-size:13px;font-weight:600;
+  white-space:nowrap;pointer-events:none;
+  opacity:0;transition:all .3s;z-index:9999;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── PAGES ── */
+.page{display:none;padding:20px}
+.page.active{display:block}
+
+/* ── CHART ── */
+.chart-card{
+  background:#fff;border-radius:24px;
+  padding:20px;
+  box-shadow:0 4px 20px rgba(109,40,217,.07);
+  border:1px solid rgba(109,40,217,.06);
+}
+
+/* ── SECTION TITLE ── */
+.section-title{font-size:.65rem;font-weight:800;color:var(--lp);letter-spacing:.12em;text-transform:uppercase}
+
+/* ── BTN PRIMARY ── */
+.btn-primary{
+  background:var(--pp);color:#fff;
+  border:none;border-radius:16px;
+  padding:14px;font-size:15px;font-weight:700;
+  font-family:inherit;cursor:pointer;
+  width:100%;transition:all .2s;
+  box-shadow:0 6px 20px rgba(109,40,217,.35);
+}
+.btn-primary:active{transform:scale(.97)}
+.btn-ghost{
+  background:transparent;color:var(--pp);
+  border:1.5px solid rgba(109,40,217,.25);
+  border-radius:16px;padding:14px;
+  font-size:15px;font-weight:700;
+  font-family:inherit;cursor:pointer;
+  width:100%;transition:all .2s;
+}
+.btn-ghost:active{transform:scale(.97)}
+
+/* ── ACTION BUTTONS ── */
+.act{
+  width:30px;height:30px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  border:none;cursor:pointer;transition:all .2s;font-size:11px;
+}
+.act:active{transform:scale(.9)}
+
+/* ── SYNC BTN ── */
+#sync-btn{
+  background:var(--pp);color:#fff;
+  border:none;border-radius:20px;
+  padding:9px 18px;font-size:11px;font-weight:800;
+  font-family:inherit;cursor:pointer;
+  letter-spacing:.05em;
+  box-shadow:0 4px 14px rgba(109,40,217,.35);
+  transition:all .2s;
+}
+#sync-btn:active{transform:scale(.94)}
+
+.spin-icon{display:inline-block;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── NO-SCROLLBAR ── */
+.noscroll::-webkit-scrollbar{display:none}
+
+/* ── WEEK STRIP (home) ── */
+.week-strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.week-strip::-webkit-scrollbar{display:none}
+.week-day{
+  min-width:52px;height:78px;
+  background:#fff;border-radius:18px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .3s cubic-bezier(.175,.885,.32,1.275);
+  box-shadow:0 2px 8px rgba(109,40,217,.06);
+  border:1px solid rgba(109,40,217,.05);
+  position:relative;
+}
+.week-day span:first-child{font-size:9px;font-weight:800;color:#9ca3af;text-transform:uppercase;margin-bottom:4px}
+.week-day span:last-child{font-size:20px;font-weight:800;color:#374151}
+.week-day.active{background:var(--pp);transform:scale(1.08);box-shadow:0 8px 20px rgba(109,40,217,.35)}
+.week-day.active span{color:#fff!important}
+.week-day .dot{width:5px;height:5px;border-radius:50%;background:var(--lp);position:absolute;bottom:6px}
+.week-day.active .dot{background:rgba(255,255,255,.7)}
+</style>
+</head>
+<body>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- ═══════════ MODAL: PRIMEIRO SYNC ═══════════ -->
+<div id="modal-first-sync" class="modal-overlay" style="display:none">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header-bar" style="border-radius:20px 20px 0 0;margin-top:8px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <i class="fab fa-google" style="font-size:1.3rem"></i>
+        <span style="font-size:1.1rem;font-weight:800">Sincronizar Agenda</span>
+      </div>
+      <p style="font-size:12px;opacity:.75">A partir de quando importar eventos do Google Calendar?</p>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+      <div>
+        <label style="font-size:11px;font-weight:800;color:var(--pp);display:block;margin-bottom:6px">A PARTIR DE:</label>
+        <input type="date" id="sync-from-date" class="inp">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button class="btn-ghost" onclick="closeModal('modal-first-sync')">Cancelar</button>
+        <button class="btn-primary" onclick="confirmFirstSync()"><i class="fas fa-sync-alt"></i> Sincronizar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL: RE-SYNC ═══════════ -->
+<div id="modal-re-sync" class="modal-overlay" style="display:none">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header-bar" style="border-radius:20px 20px 0 0;margin-top:8px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <i class="fab fa-google" style="font-size:1.3rem"></i>
+        <span style="font-size:1.1rem;font-weight:800">Deseja sincronizar?</span>
+      </div>
+      <p style="font-size:12px;opacity:.75">Atualizar com o Google Calendar agora?</p>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:10px">
+      <button class="btn-primary" onclick="doSync()"><i class="fas fa-sync-alt"></i> Sim, sincronizar</button>
+      <button class="btn-ghost" onclick="closeModal('modal-re-sync')">Agora não</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL: AGENDAMENTO ═══════════ -->
+<div id="modal-appt" class="modal-overlay" style="display:none">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header-bar" style="border-radius:20px 20px 0 0;margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span id="modal-appt-title" style="font-size:1.15rem;font-weight:800">Novo Agendamento</span>
+        <button onclick="closeModal('modal-appt')" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Drum Picker Date/Time -->
+    <div style="padding:16px 20px 0">
+      <p style="font-size:11px;font-weight:800;color:#6b7280;margin-bottom:10px">DATA E HORA</p>
+
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:4px">
+        <div style="text-align:center;font-size:10px;color:#9ca3af;font-weight:700">Dia</div>
+        <div style="text-align:center;font-size:10px;color:#9ca3af;font-weight:700">Mês</div>
+        <div style="text-align:center;font-size:10px;color:#9ca3af;font-weight:700">Hora</div>
+        <div style="text-align:center;font-size:10px;color:#9ca3af;font-weight:700">Min</div>
+        <div style="text-align:center;font-size:10px;color:#9ca3af;font-weight:700"></div>
+      </div>
+
+      <div style="background:#fafafa;border-radius:16px;padding:6px 8px;border:1.5px solid #f0ebff;position:relative">
+        <div class="drum-picker">
+          <div class="drum-col" id="drum-day"><div class="drum-selected-line"></div><div class="drum-scroll" id="ds-day"></div></div>
+          <div class="drum-col" id="drum-month"><div class="drum-selected-line"></div><div class="drum-scroll" id="ds-month"></div></div>
+          <div class="drum-col" id="drum-hour"><div class="drum-selected-line"></div><div class="drum-scroll" id="ds-hour"></div></div>
+          <div class="drum-col" id="drum-min"><div class="drum-selected-line"></div><div class="drum-scroll" id="ds-min"></div></div>
+          <div class="drum-col" id="drum-ampm"><div class="drum-selected-line"></div><div class="drum-scroll" id="ds-ampm"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fields -->
+    <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:11px;font-weight:800;color:var(--pp);display:block;margin-bottom:6px">CLIENTE</label>
+        <input type="text" id="appt-client" class="inp" placeholder="Nome do cliente">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:800;color:var(--pp);display:block;margin-bottom:6px">SERVIÇO</label>
+        <input type="text" id="appt-service" class="inp" placeholder="Ex: Limpeza Facial">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:800;color:var(--pp);display:block;margin-bottom:6px">VALOR (R$)</label>
+        <input type="number" id="appt-value" class="inp" placeholder="Ex: 150">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:800;color:var(--pp);display:block;margin-bottom:8px">COR / STATUS</label>
+        <div style="display:flex;gap:10px">
+          <div class="color-dot" data-color="done"     style="width:28px;height:28px;border-radius:50%;background:#4ade80;cursor:pointer;border:3px solid transparent" onclick="selectColor(this)"></div>
+          <div class="color-dot" data-color="progress" style="width:28px;height:28px;border-radius:50%;background:var(--lp);cursor:pointer;border:3px solid var(--pp)" onclick="selectColor(this)"></div>
+          <div class="color-dot" data-color="pending"  style="width:28px;height:28px;border-radius:50%;background:#f97316;cursor:pointer;border:3px solid transparent" onclick="selectColor(this)"></div>
+        </div>
+      </div>
+
+      <input type="hidden" id="appt-id">
+      <input type="hidden" id="appt-gcal-id">
+      <input type="hidden" id="appt-status" value="progress">
+
+      <button class="btn-primary" onclick="saveAppt()" style="margin-top:4px">
+        <i class="fas fa-check"></i> Salvar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<header class="app-header">
+  <div class="logo">Studio<span>Pro</span></div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button id="sync-btn" onclick="handleSync()">SINCRONIZAR</button>
+    <div id="user-profile" style="display:none;align-items:center;gap:8px">
+      <div onclick="doSync()" style="display:flex;align-items:center;gap:6px;background:#ede9fe;padding:6px 12px;border-radius:20px;cursor:pointer">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--pp);display:inline-block;animation:ping 1.5s infinite"></span>
+        <span style="font-size:10px;font-weight:800;color:var(--pp)">ONLINE</span>
+      </div>
+      <img id="user-avatar" src="https://ui-avatars.com/api/?name=Pro&background=6d28d9&color=fff"
+           style="width:40px;height:40px;border-radius:50%;border:2px solid #ddd6fe;cursor:pointer"
+           onclick="handleLogout()">
+    </div>
+  </div>
+</header>
+<style>@keyframes ping{0%,100%{opacity:1}50%{opacity:.4}}</style>
+
+<!-- ═══════════ APP SCROLL ═══════════ -->
+<div class="app-scroll">
+
+  <!-- ── HOME ── -->
+  <div id="page-home" class="page active">
+
+    <!-- Finance Card -->
+    <div class="finance-card" style="margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
+        <div>
+          <div style="font-size:9px;font-weight:800;letter-spacing:.15em;opacity:.6;margin-bottom:4px">RESUMO FINANCEIRO</div>
+          <div style="font-size:1.1rem;font-weight:700">Painel de Controle</div>
+        </div>
+        <div style="background:rgba(255,255,255,.12);padding:8px;border-radius:10px">
+          <i class="fas fa-crown" style="color:#fbbf24"></i>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.1)">
+        <div style="font-size:8px;font-weight:800;opacity:.55;text-transform:uppercase;letter-spacing:.05em">Atend.</div>
+        <div style="font-size:8px;font-weight:800;opacity:.55;text-align:center">Hoje</div>
+        <div style="font-size:8px;font-weight:800;opacity:.55;text-align:center">Semana</div>
+        <div style="font-size:8px;font-weight:800;opacity:.55;text-align:center">Mês</div>
+        <div style="font-size:11px;font-weight:600;opacity:.8">Qtd:</div>
+        <div style="font-size:1.3rem;font-weight:800;text-align:center" id="s-today-n">-</div>
+        <div style="font-size:1.3rem;font-weight:800;text-align:center" id="s-week-n">-</div>
+        <div style="font-size:1.3rem;font-weight:800;text-align:center" id="s-month-n">-</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+        <div style="font-size:8px;font-weight:800;opacity:.55;text-transform:uppercase;letter-spacing:.05em;padding-top:4px">Fat.</div>
+        <div class="stat-chip" style="font-size:10px;font-weight:800" id="s-today-r">R$ -</div>
+        <div class="stat-chip" style="font-size:10px;font-weight:800" id="s-week-r">R$ -</div>
+        <div class="stat-chip" style="font-size:10px;font-weight:800" id="s-month-r">R$ -</div>
+      </div>
+    </div>
+
+    <!-- Month label + nav -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div>
+        <div class="section-title">Calendário</div>
+        <div id="cal-month-label" style="font-size:1.2rem;font-weight:800;color:#1e1b4b;margin-top:2px">—</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="shiftMonth(-1)" style="width:38px;height:38px;border-radius:12px;background:#fff;border:1px solid #ede9fe;color:var(--pp);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(109,40,217,.08)">
+          <i class="fas fa-chevron-left" style="font-size:12px"></i>
+        </button>
+        <button onclick="shiftMonth(1)"  style="width:38px;height:38px;border-radius:12px;background:#fff;border:1px solid #ede9fe;color:var(--pp);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(109,40,217,.08)">
+          <i class="fas fa-chevron-right" style="font-size:12px"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Month Grid -->
+    <div style="background:#fff;border-radius:20px;padding:14px 10px;box-shadow:0 2px 12px rgba(109,40,217,.06);margin-bottom:20px;border:1px solid rgba(109,40,217,.05)">
+      <div class="cal-grid" style="margin-bottom:4px">
+        <div class="cal-head">S</div><div class="cal-head">T</div><div class="cal-head">Q</div>
+        <div class="cal-head">Q</div><div class="cal-head">S</div><div class="cal-head">S</div>
+        <div class="cal-head">D</div>
+      </div>
+      <div class="cal-grid" id="month-grid"></div>
+    </div>
+
+    <!-- Today appointments -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div>
+        <div class="section-title">Hoje</div>
+        <div id="selected-date-label" style="font-size:1rem;font-weight:800;color:#1e1b4b;margin-top:2px"></div>
+      </div>
+      <button onclick="openApptModal()" style="background:var(--pp);color:#fff;border:none;border-radius:14px;padding:8px 16px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(109,40,217,.3)">
+        + NOVO
+      </button>
+    </div>
+
+    <div id="appt-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px"></div>
+
+    <!-- Weekly Chart -->
+    <div class="chart-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:.9rem;font-weight:800;color:#1e1b4b">Desempenho Semanal</div>
+        <span id="chart-badge" style="font-size:10px;font-weight:800;color:#16a34a;background:#dcfce7;padding:3px 10px;border-radius:10px"></span>
+      </div>
+      <div style="height:180px">
+        <canvas id="weeklyChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AGENDA ── -->
+  <div id="page-agenda" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:1.25rem;font-weight:800">Agenda Completa</div>
+      <button onclick="openApptModal()" style="background:var(--pp);color:#fff;border:none;border-radius:14px;padding:8px 16px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer">+ Novo</button>
+    </div>
+    <div id="full-agenda" style="display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+
+  <!-- ── FINANÇAS ── -->
+  <div id="page-financas" class="page">
+    <div style="font-size:1.25rem;font-weight:800;margin-bottom:16px">Financeiro</div>
+    <div class="finance-card" style="margin-bottom:16px;padding:20px">
+      <div style="font-size:9px;font-weight:800;opacity:.6;margin-bottom:8px">FATURAMENTO TOTAL</div>
+      <div id="fin-total" style="font-size:2rem;font-weight:800">R$ 0,00</div>
+    </div>
+    <div style="background:#fff;border-radius:20px;padding:18px;box-shadow:0 2px 12px rgba(109,40,217,.06)">
+      <div style="font-size:.85rem;font-weight:800;margin-bottom:14px;color:#1e1b4b">Por Mês</div>
+      <div id="fin-months" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+  </div>
+
+  <!-- ── CLIENTES ── -->
+  <div id="page-clientes" class="page">
+    <div style="font-size:1.25rem;font-weight:800;margin-bottom:16px">Clientes</div>
+    <div id="clients-list" style="display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+
+</div><!-- /app-scroll -->
+
+<!-- ═══════════ FLOATING NAV ═══════════ -->
+<nav class="floating-nav">
+  <div class="nav-item active" onclick="navTo('home',this)">
+    <div class="nav-icon"><i class="fas fa-home" style="font-size:16px"></i></div>
+    <span>Home</span>
+  </div>
+  <div class="nav-item" onclick="navTo('agenda',this)">
+    <div class="nav-icon" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">
+      <i class="fas fa-calendar-day" style="font-size:16px"></i>
+    </div>
+    <span>Agenda</span>
+  </div>
+  <div class="nav-item" onclick="navTo('financas',this)">
+    <div class="nav-icon" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">
+      <i class="fas fa-chart-pie" style="font-size:16px"></i>
+    </div>
+    <span>Finanças</span>
+  </div>
+  <div class="nav-item" onclick="navTo('clientes',this)">
+    <div class="nav-icon" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center">
+      <i class="fas fa-user-friends" style="font-size:16px"></i>
+    </div>
+    <span>Clientes</span>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     SCRIPT
+════════════════════════════════════════════ -->
+<script>
+/* ─── CONSTANTS ─── */
+const MONTHS   = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+                  "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const DAYS_S   = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
+const GCAL_CID = "1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com";
+
+/* ─── STATE ─── */
+let selDate      = new Date();
+let calYear      = selDate.getFullYear();
+let calMonth     = selDate.getMonth();
+let currentUser  = null;
+let gcalToken    = null;
+let allAppts     = [];
+let chartInst    = null;
+let apptColor    = "progress";
+
+/* ─── TOAST ─── */
+function toast(msg, ms=2800) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), ms);
+}
+
+/* ─── MODAL HELPERS ─── */
+function openModal(id)  { document.getElementById(id).style.display='flex'; }
+function closeModal(id) { document.getElementById(id).style.display='none'; }
+
+/* ─── NAV ─── */
+function navTo(page, el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  if(page==='agenda')   renderFullAgenda();
+  if(page==='financas') renderFinancas();
+  if(page==='clientes') renderClientes();
+}
+
+/* ─── DATE HELPERS ─── */
+function fmtDate(d){
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+}
+function p2(n){return String(n).padStart(2,'0')}
+function fmtBR(s){
+  if(!s) return '';
+  const[y,m,d]=s.split('-');
+  return `${d}/${m}/${y}`;
+}
+function fmtMoney(v){
+  if(v>=1000) return 'R$'+(v/1000).toFixed(1)+'K';
+  return 'R$'+parseFloat(v).toFixed(0);
+}
+
+/* ─── MONTH CALENDAR ─── */
+function renderMonthGrid(){
+  const lbl = document.getElementById('cal-month-label');
+  lbl.textContent = `${MONTHS[calMonth]} ${calYear}`;
+
+  const grid = document.getElementById('month-grid');
+  grid.innerHTML='';
+
+  const today = fmtDate(new Date());
+  const selDs  = fmtDate(selDate);
+
+  // First weekday of month (Mon=0)
+  const first = new Date(calYear, calMonth, 1);
+  let startDow = first.getDay(); // 0=Sun
+  // convert: Mon=0 … Sun=6
+  startDow = (startDow + 6) % 7;
+
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const prevDays    = new Date(calYear, calMonth, 0).getDate();
+
+  const cells = startDow + daysInMonth;
+  const total = Math.ceil(cells/7)*7;
+
+  for(let i=0;i<total;i++){
+    const cell = document.createElement('div');
+    cell.className = 'cal-day';
+
+    let dayNum, dateStr, otherMonth=false;
+    if(i < startDow){
+      dayNum=prevDays-(startDow-1-i);
+      const d=new Date(calYear,calMonth-1,dayNum);
+      dateStr=fmtDate(d); otherMonth=true;
+    } else if(i-startDow < daysInMonth){
+      dayNum=i-startDow+1;
+      dateStr=fmtDate(new Date(calYear,calMonth,dayNum));
+    } else {
+      dayNum=i-startDow-daysInMonth+1;
+      const d=new Date(calYear,calMonth+1,dayNum);
+      dateStr=fmtDate(d); otherMonth=true;
+    }
+
+    cell.textContent=dayNum;
+    if(otherMonth) cell.classList.add('other-month');
+    if(dateStr===today) cell.classList.add('today');
+    if(dateStr===selDs) cell.classList.add('selected');
+    if(allAppts.some(a=>a.date===dateStr)) cell.classList.add('has-event');
+
+    cell.onclick = ()=>{
+      selDate = new Date(dateStr+'T12:00:00');
+      renderMonthGrid();
+      renderAppts();
+      updateDateLabel();
+    };
+    grid.appendChild(cell);
+  }
+}
+
+function shiftMonth(dir){
+  calMonth+=dir;
+  if(calMonth<0){calMonth=11;calYear--}
+  if(calMonth>11){calMonth=0;calYear++}
+  renderMonthGrid();
+}
+
+function updateDateLabel(){
+  const el = document.getElementById('selected-date-label');
+  const opts={weekday:'long',day:'numeric',month:'long'};
+  el.textContent = selDate.toLocaleDateString('pt-BR',opts);
+}
+
+/* ─── APPOINTMENTS LIST ─── */
+function renderAppts(){
+  const ds   = fmtDate(selDate);
+  const list = document.getElementById('appt-list');
+  const items= allAppts.filter(a=>a.date===ds).sort((a,b)=>a.time.localeCompare(b.time));
+
+  if(!items.length){
+    list.innerHTML='<div style="text-align:center;padding:24px 0;color:#9ca3af;font-size:13px;font-weight:600">Nenhum agendamento para este dia</div>';
+    return;
+  }
+
+  list.innerHTML = items.map((a,i)=>{
+    const badge = a.status==='done'     ? '<span class="status-badge status-done">Done</span>'
+                : a.status==='progress' ? '<span class="status-badge status-progress">Em andamento</span>'
+                :                         '<span class="status-badge status-pending">Pendente</span>';
+    const dotColor = a.status==='done' ? '#4ade80' : a.status==='progress' ? '#a78bfa' : '#f97316';
+    return `
+    <div class="appt-card" style="animation-delay:${i*.07}s">
+      <div style="width:8px;min-width:8px;height:50px;border-radius:4px;background:${dotColor}"></div>
+      <div class="appt-time">${a.time}<br><span style="font-size:9px;opacity:.6">${a.date.substring(5).replace('-','/')}</span></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:800;color:#1e1b4b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.client}</div>
+        <div style="font-size:11px;color:#9ca3af;font-weight:600;margin-top:2px">${a.service}</div>
+        <div style="margin-top:4px">${badge}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <div style="font-size:13px;font-weight:800;color:#1e1b4b">R$ ${parseFloat(a.value||0).toFixed(2)}</div>
+        <div style="display:flex;gap:5px">
+          <button class="act" style="background:#ede9fe;color:var(--pp)" onclick='editAppt(${JSON.stringify(a)})'><i class="fas fa-edit"></i></button>
+          <button class="act" style="background:#fee2e2;color:#ef4444" onclick="deleteAppt('${a.id}','${a.gcalId||''}')"><i class="fas fa-trash"></i></button>
+          <button class="act" style="background:var(--pp);color:#fff" onclick="confirmAppt('${a.id}')"><i class="fas fa-check"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function confirmAppt(id){
+  const a = allAppts.find(x=>x.id===id);
+  if(a){ a.status='done'; renderAppts(); renderMonthGrid(); toast('✅ Confirmado!'); saveApptFirestore(a); }
+}
+
+/* ─── FULL AGENDA ─── */
+function renderFullAgenda(){
+  const el = document.getElementById('full-agenda');
+  const grouped={};
+  [...allAppts].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))
+    .forEach(a=>{ (grouped[a.date]=grouped[a.date]||[]).push(a); });
+
+  if(!Object.keys(grouped).length){
+    el.innerHTML='<div style="text-align:center;padding:32px;color:#9ca3af;font-size:13px">Nenhum agendamento</div>';
+    return;
+  }
+  el.innerHTML=Object.entries(grouped).map(([date,items])=>`
+    <div>
+      <div style="font-size:10px;font-weight:800;color:var(--lp);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">${fmtBR(date)}</div>
+      ${items.map(a=>`
+      <div class="appt-card" style="margin-bottom:8px">
+        <div style="width:6px;min-width:6px;height:44px;border-radius:3px;background:${a.status==='done'?'#4ade80':a.status==='progress'?'#a78bfa':'#f97316'}"></div>
+        <div class="appt-time">${a.time}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:800">${a.client}</div>
+          <div style="font-size:10px;color:#9ca3af">${a.service} · R$ ${parseFloat(a.value||0).toFixed(2)}</div>
+        </div>
+        <div style="display:flex;gap:5px">
+          <button class="act" style="background:#ede9fe;color:var(--pp)" onclick='editAppt(${JSON.stringify(a)})'><i class="fas fa-edit"></i></button>
+          <button class="act" style="background:#fee2e2;color:#ef4444" onclick="deleteAppt('${a.id}','${a.gcalId||''}')"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>`).join('')}
+    </div>`).join('');
+}
+
+/* ─── FINANÇAS ─── */
+function renderFinancas(){
+  const total=allAppts.reduce((s,a)=>s+parseFloat(a.value||0),0);
+  document.getElementById('fin-total').textContent='R$ '+total.toFixed(2).replace('.',',');
+  const byM={};
+  allAppts.forEach(a=>{const k=a.date.substring(0,7);byM[k]=(byM[k]||0)+parseFloat(a.value||0)});
+  const el=document.getElementById('fin-months');
+  const keys=Object.keys(byM).sort().reverse();
+  el.innerHTML=keys.length?keys.map(k=>{
+    const[y,m]=k.split('-');
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f5f3ff">
+      <span style="font-size:13px;font-weight:600;color:#374151">${MONTHS[parseInt(m)-1]} ${y}</span>
+      <span style="font-size:13px;font-weight:800;color:var(--pp)">R$ ${byM[k].toFixed(2).replace('.',',')}</span>
+    </div>`;
+  }).join(''):'<div style="color:#9ca3af;font-size:13px;text-align:center;padding:16px">Sem dados</div>';
+}
+
+/* ─── CLIENTES ─── */
+function renderClientes(){
+  const map={};
+  allAppts.forEach(a=>{
+    if(!map[a.client])map[a.client]={count:0,total:0};
+    map[a.client].count++;map[a.client].total+=parseFloat(a.value||0);
+  });
+  const el=document.getElementById('clients-list');
+  const entries=Object.entries(map).sort((a,b)=>b[1].total-a[1].total);
+  el.innerHTML=entries.length?entries.map(([name,d])=>`
+    <div style="background:#fff;border-radius:18px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 12px rgba(109,40,217,.06);border:1px solid rgba(109,40,217,.05)">
+      <div style="width:44px;height:44px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:var(--pp);flex-shrink:0">
+        ${name.charAt(0).toUpperCase()}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:800;color:#1e1b4b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+        <div style="font-size:11px;color:#9ca3af;font-weight:600">${d.count} atendimento${d.count>1?'s':''}</div>
+      </div>
+      <div style="font-size:14px;font-weight:800;color:var(--pp)">R$ ${d.total.toFixed(2).replace('.',',')}</div>
+    </div>`).join('')
+  :'<div style="text-align:center;padding:32px;color:#9ca3af;font-size:13px">Nenhum cliente</div>';
+}
+
+/* ─── STATS ─── */
+function updateStats(){
+  const now=new Date(), today=fmtDate(now);
+  const ws=new Date(now); ws.setDate(now.getDate()-now.getDay());
+  const we=new Date(ws); we.setDate(ws.getDate()+6);
+  let tn=0,tr=0,wn=0,wr=0,mn=0,mr=0;
+  allAppts.forEach(a=>{
+    const d=new Date(a.date+'T12:00:00'), v=parseFloat(a.value||0);
+    if(a.date===today){tn++;tr+=v}
+    if(d>=ws&&d<=we){wn++;wr+=v}
+    if(d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()){mn++;mr+=v}
+  });
+  document.getElementById('s-today-n').textContent=tn;
+  document.getElementById('s-week-n').textContent=wn;
+  document.getElementById('s-month-n').textContent=mn;
+  document.getElementById('s-today-r').textContent=fmtMoney(tr);
+  document.getElementById('s-week-r').textContent=fmtMoney(wr);
+  document.getElementById('s-month-r').textContent=fmtMoney(mr);
+}
+
+/* ─── CHART ─── */
+function buildChart(){
+  const ctx=document.getElementById('weeklyChart').getContext('2d');
+  const now=new Date(), labels=[], data=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(now); d.setDate(now.getDate()-now.getDay()+i);
+    labels.push(['S','T','Q','Q','S','S','D'][i]);
+    data.push(allAppts.filter(a=>a.date===fmtDate(d)).reduce((s,a)=>s+parseFloat(a.value||0),0));
+  }
+  const maxV=Math.max(...data,1);
+  document.getElementById('chart-badge').textContent='+'+Math.round((maxV/Math.max(maxV*.8,1)-1)*100)+'%';
+
+  const g=ctx.createLinearGradient(0,0,0,300);
+  g.addColorStop(0,'#7c3aed');g.addColorStop(1,'#2e1065');
+
+  if(chartInst)chartInst.destroy();
+  chartInst=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:g,borderRadius:10,barThickness:22}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{y:{display:false},x:{grid:{display:false},ticks:{color:'#6d28d9',font:{size:11,weight:'bold'}}}}}
+  });
+}
+
+/* ─── DRUM PICKER ─── */
+let drumVals={day:selDate.getDate(),month:selDate.getMonth()+1,hour:9,min:0,ampm:'AM'};
+
+function buildDrums(){
+  const days=[]; for(let i=1;i<=31;i++) days.push(p2(i));
+  const months=[]; for(let i=1;i<=12;i++) months.push(p2(i));
+  const hours=[]; for(let i=1;i<=12;i++) hours.push(p2(i));
+  const mins=[]; for(let i=0;i<60;i+=5) mins.push(p2(i));
+
+  fillDrum('ds-day',   days,   p2(drumVals.day),    v=>{drumVals.day=parseInt(v)});
+  fillDrum('ds-month', months, p2(drumVals.month),  v=>{drumVals.month=parseInt(v)});
+  fillDrum('ds-hour',  hours,  p2(drumVals.hour),   v=>{drumVals.hour=parseInt(v)});
+  fillDrum('ds-min',   mins,   p2(drumVals.min),    v=>{drumVals.min=parseInt(v)});
+  fillDrum('ds-ampm',  ['AM','PM'], drumVals.ampm,  v=>{drumVals.ampm=v});
+}
+
+function fillDrum(id,values,selected,onChange){
+  const sc=document.getElementById(id);
+  sc.innerHTML='';
+  // padding items
+  sc.appendChild(pad()); sc.appendChild(pad());
+  values.forEach(v=>{
+    const el=document.createElement('div');
+    el.className='drum-item';
+    el.textContent=v;
+    sc.appendChild(el);
+  });
+  sc.appendChild(pad()); sc.appendChild(pad());
+
+  // Scroll to selected
+  const idx=values.indexOf(selected);
+  requestAnimationFrame(()=>{
+    sc.scrollTop = idx * 36;
+  });
+
+  sc.addEventListener('scroll',()=>{
+    const i=Math.round(sc.scrollTop/36);
+    onChange(values[Math.min(i,values.length-1)]||values[0]);
+  },{passive:true});
+}
+
+function pad(){
+  const el=document.createElement('div');
+  el.className='drum-item';
+  el.style.pointerEvents='none';
+  return el;
+}
+
+function getDrumDateTime(){
+  let h=drumVals.hour;
+  if(drumVals.ampm==='PM' && h<12) h+=12;
+  if(drumVals.ampm==='AM' && h===12) h=0;
+  const year=selDate.getFullYear();
+  const date=`${year}-${p2(drumVals.month)}-${p2(drumVals.day)}`;
+  const time=`${p2(h)}:${p2(drumVals.min)}`;
+  return{date,time};
+}
+
+/* ─── MODAL APPOINTMENT ─── */
+function selectColor(el){
+  document.querySelectorAll('.color-dot').forEach(d=>d.style.border='3px solid transparent');
+  el.style.border='3px solid var(--pp)';
+  apptColor=el.dataset.color;
+  document.getElementById('appt-status').value=apptColor;
+}
+
+function openApptModal(appt=null){
+  document.getElementById('modal-appt-title').textContent=appt?'Editar Agendamento':'Novo Agendamento';
+  document.getElementById('appt-client').value  =appt?.client  ||'';
+  document.getElementById('appt-service').value =appt?.service ||'';
+  document.getElementById('appt-value').value   =appt?.value   ||'';
+  document.getElementById('appt-id').value      =appt?.id      ||'';
+  document.getElementById('appt-gcal-id').value =appt?.gcalId  ||'';
+  apptColor = appt?.status||'progress';
+  document.getElementById('appt-status').value  =apptColor;
+
+  // sync drum to selected date or appt date
+  const base = appt ? new Date(appt.date+'T'+appt.time+':00') : selDate;
+  let h=base.getHours(),m=base.getMinutes();
+  drumVals={
+    day:base.getDate(), month:base.getMonth()+1,
+    hour: h>12?h-12:h===0?12:h,
+    min: Math.round(m/5)*5%60,
+    ampm: h>=12?'PM':'AM'
+  };
+
+  buildDrums();
+
+  // reset color dots
+  document.querySelectorAll('.color-dot').forEach(d=>{
+    d.style.border=d.dataset.color===apptColor?'3px solid var(--pp)':'3px solid transparent';
+  });
+
+  openModal('modal-appt');
+}
+function editAppt(a){ openApptModal(a); }
+
+async function saveAppt(){
+  if(!currentUser){ toast('⚠️ Faça login primeiro'); return; }
+  const client =document.getElementById('appt-client').value.trim();
+  const service=document.getElementById('appt-service').value.trim();
+  const value  =document.getElementById('appt-value').value;
+  const docId  =document.getElementById('appt-id').value;
+  const gcalId =document.getElementById('appt-gcal-id').value;
+  const status =document.getElementById('appt-status').value;
+
+  if(!client||!service){ toast('⚠️ Preencha cliente e serviço'); return; }
+
+  const {date,time}=getDrumDateTime();
+  const id=docId||crypto.randomUUID();
+  const data={id,client,service,date,time,value:parseFloat(value)||0,
+              status,userId:currentUser.uid,gcalId:gcalId||null};
+
+  await saveApptFirestore(data);
+
+  if(gcalToken){
+    const gid=await pushGCal(data,gcalId||null);
+    if(gid){ data.gcalId=gid; await saveApptFirestore(data); }
+  }
+
+  const idx=allAppts.findIndex(a=>a.id===id);
+  if(idx>=0) allAppts[idx]=data; else allAppts.push(data);
+
+  closeModal('modal-appt');
+  renderMonthGrid(); renderAppts(); updateStats(); buildChart();
+  toast('✅ Salvo!');
+}
+
+async function saveApptFirestore(data){
+  const{db,doc,setDoc}=window._fb;
+  await setDoc(doc(db,'appointments',data.id),data);
+}
+
+async function deleteAppt(id,gcalId){
+  if(!confirm('Excluir agendamento?')) return;
+  const{db,doc,deleteDoc}=window._fb;
+  await deleteDoc(doc(db,'appointments',id));
+  if(gcalId&&gcalToken){
+    await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${gcalId}`,
+      {method:'DELETE',headers:{Authorization:`Bearer ${gcalToken}`}});
+  }
+  allAppts=allAppts.filter(a=>a.id!==id);
+  renderMonthGrid(); renderAppts(); updateStats(); buildChart();
+  toast('🗑️ Excluído');
+}
+
+/* ─── GOOGLE CALENDAR ─── */
+async function pushGCal(appt,existingId){
+  if(!gcalToken) return null;
+  try{
+    const start=`${appt.date}T${appt.time}:00`;
+    const[h,m]=appt.time.split(':').map(Number);
+    const end=`${appt.date}T${p2((h+1)%24)}:${p2(m)}:00`;
+    const body=JSON.stringify({
+      summary:`${appt.client} - ${appt.service}`,
+      description:`${appt.value}`,
+      start:{dateTime:start,timeZone:'America/Sao_Paulo'},
+      end:  {dateTime:end,  timeZone:'America/Sao_Paulo'}
+    });
+    const url=existingId
+      ?`https://www.googleapis.com/calendar/v3/calendars/primary/events/${existingId}`
+      :`https://www.googleapis.com/calendar/v3/calendars/primary/events`;
+    const r=await fetch(url,{method:existingId?'PUT':'POST',
+      headers:{Authorization:`Bearer ${gcalToken}`,'Content-Type':'application/json'},body});
+    const ev=await r.json();
+    return ev.id||null;
+  }catch(e){console.error(e);return null;}
+}
+
+async function fetchGCalEvents(fromDate){
+  if(!gcalToken) return[];
+  try{
+    const tMin=new Date(fromDate+'T00:00:00').toISOString();
+    const r=await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(tMin)}&maxResults=500&singleEvents=true&orderBy=startTime`,
+      {headers:{Authorization:`Bearer ${gcalToken}`}});
+    const d=await r.json();
+    return d.items||[];
+  }catch(e){console.error(e);return[];}
+}
+
+function parseGCalEv(ev){
+  const desc=(ev.description||'').trim();
+  // extract first number as value
+  const vm=desc.match(/\b(\d+(?:[.,]\d{1,2})?)\b/);
+  const value=vm?parseFloat(vm[1].replace(',','.')):0;
+  const parts=(ev.summary||'').split(' - ');
+  const client=parts.length>1?parts[0].trim():ev.summary||'Sem nome';
+  const service=parts.length>1?parts.slice(1).join(' - ').trim():'';
+  const raw=ev.start?.dateTime||ev.start?.date||'';
+  const date=raw.substring(0,10);
+  const time=raw.length>10?raw.substring(11,16):'00:00';
+  return{client,service,date,time,value,gcalId:ev.id};
+}
+
+/* ─── SYNC ─── */
+async function doSync(){
+  closeModal('modal-re-sync');
+  const from=localStorage.getItem('syncFrom');
+  if(!from){ openModal('modal-first-sync'); return; }
+  if(!gcalToken){ toast('⚠️ Token do Calendar expirado. Faça login novamente.'); return; }
+  toast('🔄 Sincronizando…');
+  await runSync(from);
+}
+
+async function runSync(from){
+  const{db,doc,setDoc}=window._fb;
+  const evs=await fetchGCalEvents(from);
+  let added=0,updated=0;
+  for(const ev of evs){
+    if(!ev.start) continue;
+    const p=parseGCalEv(ev);
+    const ex=allAppts.find(a=>a.gcalId===ev.id);
+    if(ex){
+      const d={...ex,...p,userId:currentUser.uid,status:ex.status||'progress'};
+      await setDoc(doc(db,'appointments',ex.id),d);
+      allAppts[allAppts.indexOf(ex)]=d; updated++;
+    }else{
+      const id=crypto.randomUUID();
+      const d={id,...p,userId:currentUser.uid,status:'pending'};
+      await setDoc(doc(db,'appointments',id),d);
+      allAppts.push(d); added++;
+    }
+  }
+  renderMonthGrid(); renderAppts(); updateStats(); buildChart();
+  toast(`✅ +${added} novos · ${updated} atualizados`);
+}
+
+async function confirmFirstSync(){
+  const date=document.getElementById('sync-from-date').value;
+  if(!date){toast('Escolha uma data');return;}
+  localStorage.setItem('syncFrom',date);
+  closeModal('modal-first-sync');
+  toast('🔄 Primeira sincronização…');
+  await runSync(date);
+}
+
+/* ─── AUTH ─── */
+async function handleSync(){
+  const btn=document.getElementById('sync-btn');
+  btn.innerHTML='<i class="fas fa-circle-notch spin-icon"></i>';
+  btn.disabled=true;
+  const{auth,provider,signInWithPopup}=window._fb;
+  try{
+    const res=await signInWithPopup(auth,provider);
+    // Get GCal access token via Google Identity Services
+    gcalToken=res._tokenResponse?.oauthAccessToken||null;
+    await onLogin(res.user);
+  }catch(e){
+    console.error(e);
+    btn.innerHTML='SINCRONIZAR';
+    btn.disabled=false;
+    toast('❌ '+e.message.substring(0,60));
+  }
+}
+
+async function onLogin(user){
+  currentUser=user;
+  document.getElementById('sync-btn').style.display='none';
+  const prof=document.getElementById('user-profile');
+  prof.style.display='flex';
+  const av=document.getElementById('user-avatar');
+  av.src=user.photoURL||`https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName||'Pro')}&background=6d28d9&color=fff`;
+
+  // Try to grab GCal token via GIS
+  await tryGISToken();
+
+  await loadFirestore();
+  renderMonthGrid(); renderAppts(); updateStats(); buildChart();
+
+  if(localStorage.getItem('syncFrom')) openModal('modal-re-sync');
+  else {
+    const d=new Date(); d.setMonth(d.getMonth()-1);
+    document.getElementById('sync-from-date').value=fmtDate(d);
+    openModal('modal-first-sync');
+  }
+}
+
+async function tryGISToken(){
+  return new Promise(res=>{
+    if(!window.google?.accounts?.oauth2){res();return;}
+    try{
+      const tc=google.accounts.oauth2.initTokenClient({
+        client_id:GCAL_CID,
+        scope:'https://www.googleapis.com/auth/calendar',
+        callback:(r)=>{ if(r.access_token) gcalToken=r.access_token; res(); }
+      });
+      tc.requestAccessToken({prompt:''});
+    }catch(e){res();}
+  });
+}
+
+async function loadFirestore(){
+  const{db,collection,getDocs,query,where}=window._fb;
+  try{
+    const q=query(collection(db,'appointments'),where('userId','==',currentUser.uid));
+    const s=await getDocs(q);
+    allAppts=s.docs.map(d=>d.data());
+    toast(`📋 ${allAppts.length} agendamento${allAppts.length!==1?'s':''} carregado${allAppts.length!==1?'s':''}`);
+  }catch(e){
+    console.error(e);
+    toast('⚠️ Erro ao carregar Firestore');
+  }
+}
+
+async function handleLogout(){
+  if(!confirm('Sair da conta?')) return;
+  const{auth,signOut}=window._fb;
+  await signOut(auth);
+  currentUser=null; gcalToken=null; allAppts=[];
+  document.getElementById('sync-btn').style.display='';
+  document.getElementById('sync-btn').innerHTML='SINCRONIZAR';
+  document.getElementById('sync-btn').disabled=false;
+  document.getElementById('user-profile').style.display='none';
+  renderMonthGrid(); renderAppts(); updateStats(); buildChart();
+  toast('👋 Logout realizado');
+}
+
+/* ─── BOOT ─── */
+function boot(){
+  const wait=setInterval(()=>{
+    if(!window._fb) return;
+    clearInterval(wait);
+    const{auth,onAuthStateChanged}=window._fb;
+    onAuthStateChanged(auth,async user=>{ if(user) await onLogin(user); });
+    updateDateLabel();
+    renderMonthGrid();
+    renderAppts();
+    updateStats();
+    buildChart();
+    // Set drum defaults
+    const d=new Date();
+    drumVals={day:d.getDate(),month:d.getMonth()+1,
+              hour:d.getHours()>12?d.getHours()-12:d.getHours()||12,
+              min:0,ampm:d.getHours()>=12?'PM':'AM'};
+  },100);
+}
+
+// SW
+if('serviceWorker' in navigator){
+  const sw=`
+const C='sp-v1';const A=['./'];
+self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(A)));self.skipWaiting()});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))));self.clients.claim()});
+self.addEventListener('fetch',e=>{e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(C).then(ca=>ca.put(e.request,c));return r}).catch(()=>caches.match(e.request)))});
+  `;
+  const blob=new Blob([sw],{type:'text/javascript'});
+  navigator.serviceWorker.register(URL.createObjectURL(blob));
+}
+
+// Manifest inline
+(function(){
+  const m={name:'Studio Pro',short_name:'Studio Pro',start_url:'.',display:'standalone',
+    background_color:'#f5f3ff',theme_color:'#2e1065',
+    icons:[{src:'https://ui-avatars.com/api/?name=SP&background=6d28d9&color=fff&size=512&bold=true',sizes:'512x512',type:'image/png',purpose:'any maskable'}]};
+  const l=document.createElement('link');
+  l.rel='manifest';
+  l.href='data:application/manifest+json,'+encodeURIComponent(JSON.stringify(m));
+  document.head.appendChild(l);
+})();
+
+boot();
+</script>
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>
