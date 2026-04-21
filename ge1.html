@@ -1,0 +1,531 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão Pro - Google Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google API & Auth -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --primary-purple: #6d28d9;
+            --dark-purple: #2e1065;
+            --light-purple: #a78bfa;
+            --bg-purple: #f5f3ff;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-purple);
+            padding-bottom: 110px;
+            color: #1e1b4b;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(109, 40, 217, 0.1);
+        }
+
+        .floating-menu {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            height: 75px;
+            background: var(--dark-purple);
+            border-radius: 40px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 15px 35px rgba(46, 16, 101, 0.4);
+            z-index: 1000;
+        }
+
+        .menu-item {
+            color: #c4b5fd;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 0.75rem;
+            opacity: 0.7;
+        }
+
+        .menu-item.active {
+            color: white;
+            opacity: 1;
+            transform: translateY(-5px);
+        }
+
+        .menu-item.active i {
+            background: var(--primary-purple);
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            margin-bottom: 4px;
+            box-shadow: 0 4px 15px rgba(109, 40, 217, 0.5);
+        }
+
+        .credit-card-gradient {
+            background: linear-gradient(135deg, #4c1d95 0%, #2e1065 100%);
+            color: white;
+            border-radius: 28px;
+            box-shadow: 0 20px 40px rgba(46, 16, 101, 0.25);
+        }
+
+        .day-pill {
+            min-width: 65px;
+            height: 85px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .day-pill.active {
+            background: var(--primary-purple);
+            color: white;
+            transform: scale(1.1);
+            box-shadow: 0 8px 20px rgba(109, 40, 217, 0.3);
+        }
+
+        .action-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        #sync-modal {
+            display: none;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Modal de Primeira Sincronização -->
+    <div id="sync-modal" class="fixed inset-0 z-[2000] flex items-center justify-center p-6">
+        <div class="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl space-y-6">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fab fa-google text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-indigo-950">Primeira Sincronização</h3>
+                <p class="text-sm text-slate-500 mt-2">Desde quando deseja importar seus eventos da Agenda do Google?</p>
+            </div>
+            
+            <input type="date" id="sync-start-date" class="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-indigo-950 outline-none focus:ring-2 focus:ring-violet-500">
+            
+            <button onclick="startInitialSync()" class="w-full bg-violet-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-violet-200 active:scale-95 transition-all">
+                COMEÇAR AGORA
+            </button>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="p-6 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-50">
+        <div>
+            <h1 class="text-2xl font-extrabold text-indigo-950 tracking-tight">Studio Pro</h1>
+        </div>
+        
+        <div id="sync-container" class="flex items-center gap-3">
+            <button id="auth-btn" onclick="handleAuthClick()" class="bg-indigo-950 text-white px-5 py-2.5 rounded-full text-xs font-bold transition-all shadow-lg">
+                CONECTAR GOOGLE
+            </button>
+            
+            <button id="sync-btn" onclick="requestSync()" class="hidden bg-violet-700 hover:bg-violet-800 text-white px-5 py-2.5 rounded-full text-xs font-bold transition-all shadow-lg">
+                SINCRONIZAR
+            </button>
+            
+            <div id="user-profile" class="hidden flex items-center gap-2 animate-fade-in">
+                <span class="text-[10px] text-violet-700 font-bold bg-violet-100 px-3 py-1.5 rounded-full flex items-center gap-2">
+                    <span class="w-2 h-2 bg-violet-600 rounded-full animate-ping"></span>
+                    SYNC OK
+                </span>
+                <img id="user-photo" src="" alt="Perfil" class="w-11 h-11 rounded-full border-2 border-violet-200 shadow-md">
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto p-5 space-y-8">
+
+        <!-- Finance Card -->
+        <section class="credit-card-gradient p-7">
+            <div class="flex justify-between items-start mb-8">
+                <div class="flex flex-col">
+                    <span class="text-[10px] uppercase tracking-widest opacity-70 font-bold">Resumo Financeiro</span>
+                    <span class="text-xl font-bold">Painel de Controle</span>
+                </div>
+                <div class="bg-white/10 p-2 rounded-lg">
+                    <i class="fas fa-calendar-check text-white"></i>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-4 gap-2 text-center border-b border-white/10 pb-5 mb-5">
+                <div class="text-[9px] uppercase tracking-tighter opacity-60 font-bold">Eventos</div>
+                <div class="text-[9px] uppercase tracking-tighter opacity-60 font-bold">Hoje</div>
+                <div class="text-[9px] uppercase tracking-tighter opacity-60 font-bold">Semana</div>
+                <div class="text-[9px] uppercase tracking-tighter opacity-60 font-bold">Mês</div>
+                
+                <div class="text-xs font-medium">Qtd:</div>
+                <div id="stat-today-qty" class="text-lg font-bold">0</div>
+                <div id="stat-week-qty" class="text-lg font-bold">0</div>
+                <div id="stat-month-qty" class="text-lg font-bold">0</div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-2 text-center">
+                <div class="text-[9px] uppercase tracking-tighter opacity-60 font-bold pt-1">Faturamento</div>
+                <div id="stat-today-val" class="text-[10px] font-bold bg-white/10 py-1 rounded">R$ 0</div>
+                <div id="stat-week-val" class="text-[10px] font-bold bg-white/10 py-1 rounded">R$ 0</div>
+                <div id="stat-month-val" class="text-[10px] font-bold bg-white/10 py-1 rounded">R$ 0</div>
+            </div>
+        </section>
+
+        <!-- Calendário -->
+        <section class="space-y-5">
+            <div class="flex justify-between items-end px-1">
+                <div>
+                    <p class="text-xs font-bold text-violet-400 uppercase tracking-widest">Calendário</p>
+                    <h3 id="current-month" class="font-extrabold text-indigo-950 text-xl">Abril 2024</h3>
+                </div>
+                <div class="flex gap-2 mb-1">
+                    <button onclick="changeWeek(-1)" class="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-violet-700"><i class="fas fa-chevron-left"></i></button>
+                    <button onclick="changeWeek(1)" class="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-violet-700"><i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
+            <div id="calendar-days" class="flex gap-3 overflow-x-auto pb-4 no-scrollbar"></div>
+        </section>
+
+        <!-- Lista de Agendamentos -->
+        <section class="space-y-4">
+            <div class="flex justify-between items-center">
+                <h4 class="font-bold text-indigo-950">Agenda do Dia</h4>
+                <div id="sync-status-msg" class="text-[10px] text-slate-400">Aguardando Google...</div>
+            </div>
+            <div id="appointments-list" class="space-y-4">
+                <div class="text-center py-10 opacity-50">
+                    <i class="fas fa-calendar-day text-4xl mb-2"></i>
+                    <p class="text-xs font-bold">Conecte sua agenda para ver os horários</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <nav class="floating-menu">
+        <a href="#" class="menu-item active"><i class="fas fa-home text-lg"></i><span>Home</span></a>
+        <a href="#" class="menu-item"><i class="fas fa-calendar-day text-lg"></i><span>Agenda</span></a>
+        <a href="#" class="menu-item"><i class="fas fa-chart-pie text-lg"></i><span>Finanças</span></a>
+        <a href="#" class="menu-item"><i class="fas fa-user-friends text-lg"></i><span>Clientes</span></a>
+    </nav>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, query, where, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // Configuração Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOkgAXmN3HqB_zjfiMT7QQ1cvRmFtu8lA",
+            authDomain: "glam-studio-8b65c.firebaseapp.com",
+            projectId: "glam-studio-8b65c",
+            storageBucket: "glam-studio-8b65c.firebasestorage.app",
+            messagingSenderId: "154294556895",
+            appId: "1:154294556895:web:a42cad3171fb0fbfa7716a"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = "glam-studio-8b65c";
+
+        // Configuração Google API
+        const CLIENT_ID = '1053509141917-v8hgde8nrl8gd0k7a7acko6tibenobi6.apps.googleusercontent.com';
+        const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile';
+        
+        let tokenClient;
+        let gapiInited = false;
+        let gisInited = false;
+        let currentUser = null;
+        let selectedDate = new Date();
+        let localAppointments = [];
+
+        // --- Inicialização e Auth ---
+
+        async function initApp() {
+            await signInAnonymously(auth);
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUser = user;
+                    checkFirstAccess();
+                    renderCalendar();
+                    loadLocalData();
+                }
+            });
+            gapi.load('client', initializeGapiClient);
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: '', // definido na chamada
+            });
+            gisInited = true;
+        }
+
+        async function initializeGapiClient() {
+            await gapi.client.init({
+                discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
+            });
+            gapiInited = true;
+        }
+
+        window.handleAuthClick = () => {
+            tokenClient.callback = async (resp) => {
+                if (resp.error !== undefined) throw (resp);
+                document.getElementById('auth-btn').classList.add('hidden');
+                document.getElementById('sync-btn').classList.remove('hidden');
+                document.getElementById('user-profile').classList.remove('hidden');
+                
+                // Pegar foto básica do usuário se possível
+                fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${resp.access_token}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        document.getElementById('user-photo').src = data.picture;
+                    });
+
+                localStorage.setItem('g_token', resp.access_token);
+                syncWithGoogle();
+            };
+
+            if (gapi.client.getToken() === null) {
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            } else {
+                tokenClient.requestAccessToken({prompt: ''});
+            }
+        }
+
+        // --- Lógica de Negócio ---
+
+        async function checkFirstAccess() {
+            const userRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'config');
+            const snap = await getDoc(userRef);
+            if (!snap.exists()) {
+                document.getElementById('sync-modal').style.display = 'flex';
+            } else {
+                // Sempre pergunta ao entrar (conforme solicitado)
+                if(confirm("Deseja sincronizar com o Google Agenda agora?")) {
+                    handleAuthClick();
+                }
+            }
+        }
+
+        window.startInitialSync = async () => {
+            const date = document.getElementById('sync-start-date').value;
+            if(!date) return alert("Selecione uma data!");
+            
+            const userRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'config');
+            await setDoc(userRef, { lastSync: new Date().toISOString(), syncFrom: date });
+            document.getElementById('sync-modal').style.display = 'none';
+            handleAuthClick();
+        }
+
+        window.requestSync = () => syncWithGoogle();
+
+        async function syncWithGoogle() {
+            document.getElementById('sync-status-msg').innerText = "Sincronizando...";
+            try {
+                const response = await gapi.client.calendar.events.list({
+                    calendarId: 'primary',
+                    timeMin: (new Date()).toISOString(),
+                    showDeleted: false,
+                    singleEvents: true,
+                    orderBy: 'startTime',
+                });
+
+                const events = response.result.items;
+                for (const event of events) {
+                    const price = extractPrice(event.summary + " " + (event.description || ""));
+                    const appointment = {
+                        id: event.id,
+                        title: event.summary,
+                        start: event.start.dateTime || event.start.date,
+                        description: event.description || "",
+                        price: price,
+                        source: 'google'
+                    };
+                    
+                    // Salva no Firestore seguindo a regra Rule 1
+                    await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'appointments', event.id), appointment);
+                }
+                document.getElementById('sync-status-msg').innerText = "Atualizado agora";
+                loadLocalData();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('sync-status-msg').innerText = "Erro na conexão";
+            }
+        }
+
+        function extractPrice(text) {
+            // Regra: se houver número, extrai o primeiro valor numérico
+            const match = text.match(/\d+/);
+            return match ? parseFloat(match[0]) : 0;
+        }
+
+        function loadLocalData() {
+            if(!currentUser) return;
+            const q = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'appointments');
+            
+            onSnapshot(q, (snapshot) => {
+                localAppointments = [];
+                snapshot.forEach(doc => localAppointments.push(doc.data()));
+                updateUI();
+            }, (err) => console.error("Erro snapshot:", err));
+        }
+
+        function updateUI() {
+            renderAppointments();
+            calculateFinance();
+        }
+
+        function calculateFinance() {
+            const now = new Date();
+            let todayVal = 0, weekVal = 0, monthVal = 0;
+            let todayQty = 0, weekQty = 0, monthQty = 0;
+
+            localAppointments.forEach(app => {
+                const appDate = new Date(app.start);
+                const val = app.price || 0;
+
+                // Hoje
+                if(appDate.toDateString() === now.toDateString()) {
+                    todayVal += val;
+                    todayQty++;
+                }
+
+                // Mês
+                if(appDate.getMonth() === now.getMonth() && appDate.getFullYear() === now.getFullYear()) {
+                    monthVal += val;
+                    monthQty++;
+                }
+
+                // Semana (aproximado)
+                const diff = (now - appDate) / (1000 * 60 * 60 * 24);
+                if(diff >= 0 && diff <= 7) {
+                    weekVal += val;
+                    weekQty++;
+                }
+            });
+
+            document.getElementById('stat-today-qty').innerText = String(todayQty).padStart(2, '0');
+            document.getElementById('stat-week-qty').innerText = String(weekQty).padStart(2, '0');
+            document.getElementById('stat-month-qty').innerText = String(monthQty).padStart(2, '0');
+            
+            document.getElementById('stat-today-val').innerText = `R$ ${todayVal}`;
+            document.getElementById('stat-week-val').innerText = `R$ ${weekVal}`;
+            document.getElementById('stat-month-val').innerText = `R$ ${monthVal > 1000 ? (monthVal/1000).toFixed(1) + 'K' : monthVal}`;
+        }
+
+        function renderAppointments() {
+            const list = document.getElementById('appointments-list');
+            const dayEvents = localAppointments.filter(app => {
+                const d = new Date(app.start);
+                return d.toDateString() === selectedDate.toDateString();
+            });
+
+            if(dayEvents.length === 0) {
+                list.innerHTML = `<div class="text-center py-10 opacity-30 text-xs font-bold">Nenhum evento para este dia</div>`;
+                return;
+            }
+
+            list.innerHTML = dayEvents.map((app, i) => `
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-violet-50 flex justify-between items-center animate-fade-in" style="animation-delay: ${i * 0.1}s">
+                    <div class="flex gap-4 items-center">
+                        <div class="bg-violet-50 text-violet-700 font-bold text-xs p-3 rounded-xl">
+                            ${new Date(app.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </div>
+                        <div>
+                            <p class="font-bold text-indigo-950 text-sm leading-tight">${app.title}</p>
+                            <p class="text-[11px] text-violet-400 font-medium">${app.description.substring(0, 25)}...</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-2">
+                        <span class="font-bold text-indigo-950 text-sm">R$ ${app.price.toFixed(2)}</span>
+                        <div class="flex gap-1.5">
+                            <button class="action-btn bg-violet-700 text-white text-xs shadow-md"><i class="fas fa-check"></i></button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- Auxiliares de UI ---
+
+        function renderCalendar() {
+            const container = document.getElementById('calendar-days');
+            const monthDisplay = document.getElementById('current-month');
+            const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            const weekDaysShort = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+            
+            container.innerHTML = '';
+            monthDisplay.innerText = `${months[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
+
+            for (let i = -3; i <= 3; i++) {
+                const day = new Date(selectedDate);
+                day.setDate(selectedDate.getDate() + i);
+                const isActive = i === 0;
+                
+                const pill = document.createElement('div');
+                pill.className = `day-pill bg-white flex flex-col items-center justify-center rounded-2xl shadow-sm cursor-pointer ${isActive ? 'active' : 'text-slate-400'}`;
+                pill.onclick = () => {
+                    selectedDate = day;
+                    renderCalendar();
+                    updateUI();
+                };
+                pill.innerHTML = `
+                    <span class="text-[9px] uppercase font-black mb-1 opacity-80">${weekDaysShort[day.getDay()]}</span>
+                    <span class="text-xl font-bold">${day.getDate()}</span>
+                `;
+                container.appendChild(pill);
+            }
+        }
+
+        window.changeWeek = (dir) => {
+            selectedDate.setDate(selectedDate.getDate() + (dir * 7));
+            renderCalendar();
+            updateUI();
+        }
+
+        // Expor funções globais para botões HTML
+        window.initApp = initApp;
+        window.onload = initApp;
+
+    </script>
+</body>
+</html>
+
+```
